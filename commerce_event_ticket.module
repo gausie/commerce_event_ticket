@@ -12,8 +12,9 @@ function commerce_event_ticket_entity_info() {
 
   $entities['commerce_event_ticket'] = array(
     'label' => t('Ticket'),
-    'entity class' => 'Entity',
-    'controller class' => 'CommerceEventTicketController',
+    'entity class' => 'CommerceEventTicketEntity',
+    'controller class' => 'EntityAPIController',
+    'uri callback' => 'commerce_event_ticket_uri',
     'access callback' => 'commerce_event_ticket_access',
     'label callback' => 'commerce_event_ticket_label',
     'base table' => 'commerce_event_ticket',
@@ -36,13 +37,13 @@ function commerce_event_ticket_entity_info() {
     ),
     'view callback' => 'entity_metadata_view_single',
     'static cache' => TRUE,
-    'fieldable' => TRUE,
+    'fieldable' => FALSE,
     'module' => 'commerce_event_ticket',
   );
 
   foreach (commerce_event_ticket_types() as $key => $type) {
     $entities['commerce_event_ticket']['bundles'][$key] = array(
-      'label' => drupal_ucfirst($type['name']),
+      'label' => $type['name'],
       'admin' => array(
         'path' => 'admin/commerce/config/event-ticket/' . $key,
         'real path' => 'admin/commerce/config/event-ticket/' . $key,
@@ -107,14 +108,21 @@ function commerce_event_ticket_entity_property_info() {
       'schema field' => 'uid',
       'required' => TRUE,
     ),
-    'order_id' => array(
+    'order' => array(
       'label' => t('Order'),
       'description' => t('The Commerce order associated with the ticket.'),
       'type' => 'commerce_order',
       'schema field' => 'order_id',
       'required' => TRUE,
     ),
-    'product_id' => array(
+    'line_item' => array(
+      'label' => t('Line item'),
+      'description' => t('The Commerce line item associated with the ticket.'),
+      'type' => 'commerce_line_item',
+      'schema field' => 'line_item_id',
+      'required' => TRUE,
+    ),
+    'product' => array(
       'label' => t('Product'),
       'description' => t('The Commerce product associated with the ticket.'),
       'type' => 'commerce_product',
@@ -130,13 +138,14 @@ function commerce_event_ticket_entity_property_info() {
  *
  * @return array
  *   An array of ticket types, keyed with a unique machine name. Each element is
- *   a structured array, defining at least 'name'.
+ *   a structured array, defining at least 'name' (a sanitized human-readable
+ *   name).
  */
 function commerce_event_ticket_types() {
   $types = &drupal_static(__FUNCTION__);
   if ($types === NULL) {
     $types = array(
-      'commerce_event_ticket' => array(
+      'ticket' => array(
         'name' => t('Event ticket'),
       ),
     );
@@ -177,9 +186,49 @@ function commerce_event_ticket_label($entity) {
  *
  * @todo
  */
-function commerce_event_ticket_create($order) {
-  // 1. Search for products in the order.
-  // 2. Determine whether those products should have event tickets.
-  // 3. Create tickets for each, inc. barcodes, and save them.
-  // 4. Return the created tickets.
+function commerce_event_ticket_create_from_order($order) {
+  $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+  // Find line items in the order.
+  foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
+    if ($line_item_wrapper->type->value() == 'product') {
+      // Get the product from the line item.
+      $product = $line_item_wrapper->commerce_product->value();
+      $config = commerce_event_ticket_get_ticket_config($product);
+      if ($config) {
+        $ticket = entity_get_controller('commerce_event_ticket')->create(array(
+          'type' => $config['type'],
+          'product_id' => $product->product_id,
+          'order_id' => $order->order_id,
+          'uid' => $order->uid,
+          'line_item_id' => $line_item_wrapper->line_item_id->value(),
+        ));
+        // @todo generate barcode
+        entity_get_controller('commerce_event_ticket')->save($ticket);
+      }
+    }
+  }
+}
+
+/**
+ * URI callback for Commerce Event Ticket.
+ */
+function commerce_event_ticket_uri($entity) {
+  return 'user/' . $entity->uid . '/orders/' . $entity->order_id . '/tickets/' . $entity->ticket_id;
+}
+
+/**
+ * Get the event ticket configuration for a product.
+ *
+ * @todo
+ *
+ * @param stdClass $product
+ *   The Commerce product object.
+ *
+ * @return array
+ *   Event ticket configuration.
+ */
+function commerce_event_ticket_get_ticket_config($product) {
+  return array(
+    'type' => 'ticket',
+  );
 }

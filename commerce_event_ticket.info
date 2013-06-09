@@ -1,6 +1,7 @@
 name = Commerce Event Ticket
 description = Allows tickets (with unique barcodes) to be generated for Commerce purchases.
 core = 7.x
+configure = admin/commerce/config/event-ticket
 dependencies[] = commerce
 dependencies[] = commerce_product
 dependencies[] = commerce_line_item
@@ -8,4 +9,4 @@ dependencies[] = commerce_order
 dependencies[] = entity
 dependencies[] = rules
 dependencies[] = tcpdf
-files[] = commerce_event_ticket.controller.inc
+files[] = commerce_event_ticket_entity.inc

@@ -27,12 +27,18 @@ function commerce_event_ticket_schema() {
       ),
       'barcode' => array(
         'description' => 'A barcode for the ticket.',
-        'type' => 'int',
-        'unsigned' => TRUE,
+        'type' => 'varchar',
+        'length' => 255,
         'not null' => TRUE,
       ),
       'order_id' => array(
         'description' => 'The {commerce_order}.order_id associated with the ticket.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'line_item_id' => array(
+        'description' => 'The {commerce_line_item}.line_item_id associated with the ticket.',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
@@ -68,6 +74,7 @@ function commerce_event_ticket_schema() {
     ),
     'indexes' => array(
       'order_id' => array('order_id'),
+      'line_item_id' => array('line_item_id'),
       'product_id' => array('product_id'),
       'type' => array('type'),
       'uid' => array('uid'),
