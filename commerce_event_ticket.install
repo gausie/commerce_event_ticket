@@ -1,0 +1,80 @@
+<?php
+/**
+ * @file
+ *   Install functions for the Commerce Event Ticket module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function commerce_event_ticket_schema() {
+  $schema = array();
+
+  $schema['commerce_event_ticket'] = array(
+    'description' => 'Stores the details of Commerce Event Tickets.',
+    'fields' => array(
+      'ticket_id' => array(
+        'description' => 'Primary key: an identifier for the ticket.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => 'The type (bundle) of ticket.',
+        'type' => 'varchar',
+        'length' => 100,
+        'not null' => TRUE,
+      ),
+      'barcode' => array(
+        'description' => 'A barcode for the ticket.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'order_id' => array(
+        'description' => 'The {commerce_order}.order_id associated with the ticket.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'product_id' => array(
+        'description' => 'The {commerce_product}.product_id associated with the ticket.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'description' => 'The {users}.uid of the owner of this ticket.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'created' => array(
+        'description' => 'The UNIX timestamp when this record was created.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'changed' => array(
+        'description' => 'The UNIX timestamp when this record was last modified.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('ticket_id'),
+    'unique keys' => array(
+      'barcode' => array('barcode'),
+    ),
+    'indexes' => array(
+      'order_id' => array('order_id'),
+      'product_id' => array('product_id'),
+      'type' => array('type'),
+      'uid' => array('uid'),
+      'created' => array('created'),
+      'changed' => array('changed'),
+    ),
+  );
+
+  return $schema;
+}

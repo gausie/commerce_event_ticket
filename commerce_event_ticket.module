@@ -1,0 +1,163 @@
+<?php
+/**
+ * Main file for the Commerce Event Ticket module.
+ */
+
+/**
+ * Implements hook_entity_info().
+ */
+function commerce_event_ticket_entity_info() {
+  $entities = array();
+
+  $entities['commerce_event_ticket'] = array(
+    'label' => t('Ticket'),
+    'entity class' => 'Entity',
+    'controller class' => 'CommerceEventTicketController',
+    'access callback' => 'commerce_event_ticket_access',
+    'label callback' => 'commerce_event_ticket_label',
+    'base table' => 'commerce_event_ticket',
+    'token type' => 'commerce-event-ticket',
+    'entity keys' => array(
+      'id' => 'ticket_id',
+      'bundle' => 'type',
+    ),
+    'bundle keys' => array(
+      'bundle' => 'type',
+    ),
+    'bundles' => array(),
+    'view modes' => array(
+      'full' => array(
+        'label' => t('Full content'),
+      ),
+      'teaser' => array(
+        'label' => t('Teaser'),
+      ),
+    ),
+    'view callback' => 'entity_metadata_view_single',
+    'static cache' => TRUE,
+    'fieldable' => TRUE,
+    'module' => 'commerce_event_ticket',
+  );
+
+  foreach (commerce_event_ticket_types() as $key => $type) {
+    $entities['commerce_event_ticket']['bundles'][$key] = array(
+      'label' => drupal_ucfirst($type['name']),
+      'admin' => array(
+        'path' => 'admin/commerce/config/event-ticket/' . $key,
+        'real path' => 'admin/commerce/config/event-ticket/' . $key,
+        'bundle argument' => 4,
+        'access arguments' => array('administer commerce event ticket'),
+      ),
+    );
+  }
+
+  return $entities;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function commerce_event_ticket_permission() {
+  return array(
+    'administer commerce event ticket' => array(
+      'title' => t('Administer event tickets'),
+    ),
+    'view all commerce event ticket' => array(
+      'title' => t('View all event tickets'),
+    ),
+    'view own commerce event ticket' => array(
+      'title' => t('View own event tickets'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_entity_property_info().
+ */
+function commerce_event_ticket_entity_property_info() {
+  $info = array();
+  $properties = &$info['commerce_event_ticket']['properties'];
+  $properties = array(
+    'ticket_id' => array(
+      'label' => t('Ticket ID'),
+      'description' => t('Primary key'),
+      'type' => 'integer',
+      'schema field' => 'id',
+      'required' => TRUE,
+    ),
+    'type' => array(
+      'label' => t('Type'),
+      'description' => t('The type of ticket.'),
+      'type' => 'text',
+      'schema field' => 'type',
+      'required' => TRUE,
+    ),
+    'barcode' => array(
+      'label' => t('Barcode'),
+      'description' => t('The barcode for the ticket.'),
+      'type' => 'int',
+      'schema field' => 'barcode',
+      'required' => TRUE,
+    ),
+    'owner' => array(
+      'label' => t('Owner'),
+      'description' => t('The owner of the ticket.'),
+      'type' => 'user',
+      'schema field' => 'uid',
+      'required' => TRUE,
+    ),
+    'order_id' => array(
+      'label' => t('Order'),
+      'description' => t('The Commerce order associated with the ticket.'),
+      'type' => 'commerce_order',
+      'schema field' => 'order_id',
+      'required' => TRUE,
+    ),
+    'product_id' => array(
+      'label' => t('Product'),
+      'description' => t('The Commerce product associated with the ticket.'),
+      'type' => 'commerce_product',
+      'schema field' => 'product_id',
+      'required' => TRUE,
+    ),
+  );
+  return $info;
+}
+
+/**
+ * Access callback for Commerce Event Ticket.
+ */
+function commerce_event_ticket_access($op, $entity, $account = NULL) {
+  if (!$account) {
+    $account = $GLOBALS['user'];
+  }
+  if ($op == 'view') {
+    if (!empty($account->uid) && $account->uid == $entity->uid && user_access('view own commerce event ticket')) {
+      return TRUE;
+    }
+    if (user_access('view all commerce event ticket')) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
+/**
+ * Label callback for Commerce Event Ticket.
+ */
+function commerce_event_ticket_label($entity) {
+  $product = commerce_product_load($entity->product_id);
+  return t('Ticket: @product', array('@product' => $product->title));
+}
+
+/**
+ * Create event tickets for an order.
+ *
+ * @todo
+ */
+function commerce_event_ticket_create($order) {
+  // 1. Search for products in the order.
+  // 2. Determine whether those products should have event tickets.
+  // 3. Create tickets for each, inc. barcodes, and save them.
+  // 4. Return the created tickets.
+}
