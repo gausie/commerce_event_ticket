@@ -1,5 +1,6 @@
 <?php
 /**
+ * @file
  * Main file for the Commerce Event Ticket module.
  */
 
@@ -122,6 +123,27 @@ function commerce_event_ticket_entity_property_info() {
     ),
   );
   return $info;
+}
+
+/**
+ * Get information about Commerce Event Ticket types.
+ *
+ * @return array
+ *   An array of ticket types, keyed with a unique machine name. Each element is
+ *   a structured array, defining at least 'name'.
+ */
+function commerce_event_ticket_types() {
+  $types = &drupal_static(__FUNCTION__);
+  if ($types === NULL) {
+    $types = array(
+      'commerce_event_ticket' => array(
+        'name' => t('Event ticket'),
+      ),
+    );
+    $types += module_invoke_all('commerce_event_ticket_info');
+    drupal_alter('commerce_event_ticket_info', $types);
+  }
+  return $types;
 }
 
 /**
