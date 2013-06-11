@@ -300,11 +300,22 @@ function commerce_event_ticket_count($line_item) {
  *   A prefix to prepend to the token.
  * @param int $length
  *   The length of the remainder of the token.
+ * @param int $recursed
+ *   A count of how many times this function has recursed.
  *
  * @return string
  *   A random barcode token.
  */
-function commerce_event_ticket_generate_barcode_token($prefix = '', $length = 10) {
+function commerce_event_ticket_generate_barcode_token($prefix = '', $length = 10, $recursed = 0) {
+  // Fail if the function has recursed more than 100 times.
+  if ($recursed > 100) {
+    throw new Exception(
+      t('Failed to generate a new barcode token (prefix @prefix, length @length).', array(
+        '@prefix' => $prefix,
+        '@length' => $length,
+      ))
+    );
+  }
   // Make a new random token.
   // @todo make this alterable by other modules
   $integers = range(0, 9);
@@ -321,7 +332,7 @@ function commerce_event_ticket_generate_barcode_token($prefix = '', $length = 10
   $count = $query->execute();
   // If it does already exist, then recurse to find a new token.
   if ($count) {
-    return commerce_event_ticket_generate_barcode_token($length);
+    return commerce_event_ticket_generate_barcode_token($prefix, $length, $recursed + 1);
   }
   return $token;
 }
