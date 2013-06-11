@@ -156,20 +156,37 @@ function commerce_event_ticket_types() {
 }
 
 /**
- * Access callback for Commerce Event Ticket.
+ * Implements hook_menu().
+ */
+function commerce_event_ticket_menu() {
+  $items['user/%user/orders/%commerce_order/tickets/%commerce_event_ticket'] = array(
+    'title callback' => 'commerce_event_ticket_label',
+    'title arguments' => array(5),
+    'page callback' => 'commerce_event_ticket_view',
+    'page arguments' => array(5, 'full'),
+    'access callback' => 'commerce_event_ticket_access',
+    'access arguments' => array('view', 5),
+  );
+  return $items;
+}
+
+/**
+ * View callback for an event ticket.
+ *
+ * @todo
+ */
+function commerce_event_ticket_view($ticket, $view_mode = 'full') {
+  return array('#markup' => '<pre>' . print_r($ticket, TRUE) . '</pre>');
+}
+
+/**
+ * Access callback for an event ticket.
  */
 function commerce_event_ticket_access($op, $entity, $account = NULL) {
   // Operations other than 'view' make no sense.
   if ($op != 'view') {
     return FALSE;
   }
-  // Deny access if the order balance has not been paid in full.
-  $order = commerce_order_load($entity->order_id);
-  $balance = commerce_payment_order_balance($order);
-  if ($balance > 0) {
-    return FALSE;
-  }
-  // Grant view access to relevant users.
   if (!$account) {
     $account = $GLOBALS['user'];
   }
@@ -249,7 +266,10 @@ function commerce_event_ticket_entity_delete($entity, $type) {
  */
 function commerce_event_ticket_label($entity) {
   $product = commerce_product_load($entity->product_id);
-  return t('Ticket: @product', array('@product' => $product->title));
+  return t('Ticket @ticket (@product)', array(
+    '@ticket' => $entity->ticket_id,
+    '@product' => $product->title,
+  ));
 }
 
 /**
