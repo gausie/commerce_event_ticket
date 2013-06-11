@@ -10,4 +10,4 @@ dependencies[] = commerce_order
 dependencies[] = entity
 dependencies[] = rules
 dependencies[] = tcpdf
-files[] = commerce_event_ticket_entity.inc
+files[] = includes/commerce_event_ticket_entity.inc
