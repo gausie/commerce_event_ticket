@@ -64,10 +64,10 @@ function commerce_event_ticket_permission() {
     'administer commerce event ticket' => array(
       'title' => t('Administer event tickets'),
     ),
-    'view all commerce event ticket' => array(
+    'view all commerce event tickets' => array(
       'title' => t('View all event tickets'),
     ),
-    'view own commerce event ticket' => array(
+    'view own commerce event tickets' => array(
       'title' => t('View own event tickets'),
     ),
   );
@@ -175,10 +175,10 @@ function commerce_event_ticket_access($op, $entity, $account = NULL) {
   }
   if (!empty($account->uid)
     && $account->uid == $entity->uid
-    && user_access('view own commerce event ticket', $account)) {
+    && user_access('view own commerce event tickets', $account)) {
     return TRUE;
   }
-  if (user_access('view all commerce event ticket', $account)) {
+  if (user_access('view all commerce event tickets', $account)) {
     return TRUE;
   }
   return FALSE;
