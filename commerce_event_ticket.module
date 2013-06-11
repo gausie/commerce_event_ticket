@@ -13,7 +13,7 @@ function commerce_event_ticket_entity_info() {
   $entities['commerce_event_ticket'] = array(
     'label' => t('Ticket'),
     'entity class' => 'CommerceEventTicketEntity',
-    'controller class' => 'EntityAPIController',
+    'controller class' => 'CommerceEventTicketController',
     'uri callback' => 'commerce_event_ticket_uri',
     'access callback' => 'commerce_event_ticket_access',
     'label callback' => 'commerce_event_ticket_label',
@@ -94,11 +94,11 @@ function commerce_event_ticket_entity_property_info() {
       'schema field' => 'type',
       'required' => TRUE,
     ),
-    'barcode' => array(
-      'label' => t('Barcode'),
-      'description' => t('The barcode for the ticket.'),
+    'barcode_token' => array(
+      'label' => t('Barcode token'),
+      'description' => t('The barcode token for the ticket.'),
       'type' => 'int',
-      'schema field' => 'barcode',
+      'schema field' => 'barcode_token',
       'required' => TRUE,
     ),
     'owner' => array(
@@ -159,16 +159,27 @@ function commerce_event_ticket_types() {
  * Access callback for Commerce Event Ticket.
  */
 function commerce_event_ticket_access($op, $entity, $account = NULL) {
+  // Operations other than 'view' make no sense.
+  if ($op != 'view') {
+    return FALSE;
+  }
+  // Deny access if the order balance has not been paid in full.
+  $order = commerce_order_load($entity->order_id);
+  $balance = commerce_payment_order_balance($order);
+  if ($balance > 0) {
+    return FALSE;
+  }
+  // Grant view access to relevant users.
   if (!$account) {
     $account = $GLOBALS['user'];
   }
-  if ($op == 'view') {
-    if (!empty($account->uid) && $account->uid == $entity->uid && user_access('view own commerce event ticket')) {
-      return TRUE;
-    }
-    if (user_access('view all commerce event ticket')) {
-      return TRUE;
-    }
+  if (!empty($account->uid)
+    && $account->uid == $entity->uid
+    && user_access('view own commerce event ticket', $account)) {
+    return TRUE;
+  }
+  if (user_access('view all commerce event ticket', $account)) {
+    return TRUE;
   }
   return FALSE;
 }
@@ -211,6 +222,29 @@ function commerce_event_ticket_delete_multiple(array $ticket_ids) {
 }
 
 /**
+ * Delete all the tickets associated with the specified line item.
+ */
+function commerce_event_ticket_delete_by_line_item($line_item) {
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'commerce_event_ticket')
+    ->propertyCondition('line_item_id', $line_item->line_item_id);
+  $result = $query->execute();
+  if (!empty($result['commerce_event_ticket'])) {
+    $ids = array_keys($result['commerce_event_ticket']);
+    commerce_event_ticket_delete_multiple($ids);
+  }
+}
+
+/**
+ * Implements hook_entity_delete().
+ */
+function commerce_event_ticket_entity_delete($entity, $type) {
+  if ($type == 'commerce_line_item') {
+    commerce_event_ticket_delete_by_line_item($entity);
+  }
+}
+
+/**
  * Label callback for Commerce Event Ticket.
  */
 function commerce_event_ticket_label($entity) {
@@ -219,30 +253,112 @@ function commerce_event_ticket_label($entity) {
 }
 
 /**
+ * Count the number of event tickets that already exist for a line item.
+ *
+ * @param int $line_item
+ *   The Commerce line item object.
+ *
+ * @return int
+ *   The number of event tickets that have already been created for this line
+ *   item.
+ */
+function commerce_event_ticket_count($line_item) {
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'commerce_event_ticket')
+    ->propertyCondition('line_item_id', $line_item->line_item_id);
+  $result = $query->execute();
+  if (isset($result['commerce_event_ticket'])) {
+    return count($result['commerce_event_ticket']);
+  }
+  return 0;
+}
+
+/**
+ * Generate a new barcode token for the ticket.
+ *
+ * @param string $prefix
+ *   A prefix to prepend to the token.
+ * @param int $length
+ *   The length of the remainder of the token.
+ *
+ * @return string
+ *   A random barcode token.
+ */
+function commerce_event_ticket_generate_barcode_token($prefix = '', $length = 10) {
+  // Make a new random token.
+  // @todo make this alterable by other modules
+  $integers = range(0, 9);
+  shuffle($integers);
+  $token = $prefix;
+  for ($i = 0; $i < $length; $i++) {
+    $token .= $integers[$i];
+  }
+  // Check whether the token already exists.
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'commerce_event_ticket')
+    ->propertyCondition('barcode_token', $token)
+    ->count();
+  $count = $query->execute();
+  // If it does already exist, then recurse to find a new token.
+  if ($count) {
+    return commerce_event_ticket_generate_barcode_token($length);
+  }
+  return $token;
+}
+
+/**
  * Create event tickets for an order.
  *
- * @todo
+ * This is provided as a Rules action.
+ *
+ * @param stdClass $order
+ *   The Commerce order object.
  */
 function commerce_event_ticket_create_from_order($order) {
   $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
   // Find line items in the order.
   foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
-    if ($line_item_wrapper->type->value() == 'product') {
-      // Get the product from the line item.
-      $product = $line_item_wrapper->commerce_product->value();
-      $config = commerce_event_ticket_get_ticket_config($product);
-      if ($config) {
-        $ticket = entity_get_controller('commerce_event_ticket')->create(array(
-          'type' => $config['type'],
-          'product_id' => $product->product_id,
-          'order_id' => $order->order_id,
-          'uid' => $order->uid,
-          'line_item_id' => $line_item_wrapper->line_item_id->value(),
-        ));
-        // @todo generate barcode
-        entity_get_controller('commerce_event_ticket')->save($ticket);
-      }
+    $line_item = $line_item_wrapper->value();
+
+    // Check that the line item is a product.
+    if ($line_item->type != 'product') {
+      continue;
     }
+
+    // Check that the product is configured to have tickets.
+    $product = $line_item_wrapper->commerce_product->value();
+    $config = commerce_event_ticket_get_ticket_config($product);
+    if (!$config) {
+      continue;
+    }
+
+    // Check what quantity of tickets should be generated.
+    $existing = commerce_event_ticket_count($line_item);
+    $quantity_new = $line_item->quantity - $existing;
+
+    // Generate the new tickets.
+    $controller = entity_get_controller('commerce_event_ticket');
+    $transaction = db_transaction();
+    for ($number = 1; $number <= $quantity_new; $number++) {
+      $ticket = $controller->create(array(
+        'type' => $config['type'],
+        'barcode_token' => commerce_event_ticket_generate_barcode_token(),
+        'product_id' => $product->product_id,
+        'order_id' => $order->order_id,
+        'uid' => $order->uid,
+        'line_item_id' => $line_item->line_item_id,
+        'number' => $number,
+      ));
+      $controller->save($ticket, $transaction);
+    }
+
+    // Log a message about the newly generated tickets.
+    watchdog('commerce_event_ticket', 'Created @new new ticket(s), of @total total, for order number @order and line item ID @line_item.', array(
+      '@new' => $quantity_new,
+      '@total' => $line_item->quantity,
+      '@order' => $order->order_number,
+      '@line_item' => $line_item->line_item_id,
+    ));
   }
 }
 

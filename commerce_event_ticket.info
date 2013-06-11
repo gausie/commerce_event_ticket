@@ -11,3 +11,4 @@ dependencies[] = entity
 dependencies[] = rules
 dependencies[] = tcpdf
 files[] = includes/commerce_event_ticket_entity.inc
+files[] = includes/commerce_event_ticket_controller.inc
