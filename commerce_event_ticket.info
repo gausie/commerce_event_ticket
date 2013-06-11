@@ -3,6 +3,7 @@ description = Allows tickets (with unique barcodes) to be generated for Commerce
 core = 7.x
 configure = admin/commerce/config/event-ticket
 dependencies[] = commerce
+dependencies[] = commerce_checkout
 dependencies[] = commerce_product
 dependencies[] = commerce_line_item
 dependencies[] = commerce_order
