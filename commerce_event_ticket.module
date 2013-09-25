@@ -102,6 +102,16 @@ function commerce_event_ticket_types() {
  * Implements hook_menu().
  */
 function commerce_event_ticket_menu() {
+  // The configuration form.
+  $items['admin/commerce/config/event-ticket'] = array(
+    'title' => 'Commerce Event Ticket settings',
+    'description' => 'Configure settings for event tickets.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('commerce_event_ticket_config'),
+    'file' => 'commerce_event_ticket.admin.inc',
+    'access arguments' => array('administer commerce event ticket'),
+    'type' => MENU_NORMAL_ITEM,
+  );
   $items['admin/commerce/orders/%commerce_order/tickets/%commerce_event_ticket'] = array(
     'title callback' => 'commerce_event_ticket_label',
     'title arguments' => array(5),
@@ -386,8 +396,7 @@ function _commerce_event_ticket_order_should_have_tickets($order, $reset = FALSE
 
       // Check that the product is configured to have tickets.
       $product = $line_item_wrapper->commerce_product->value();
-      $config = commerce_event_ticket_get_ticket_config($product);
-      if ($config) {
+      if (commerce_event_ticket_product_is_ticket($product)) {
         $cache[$order->order_id] = TRUE;
         break;
       }
@@ -420,8 +429,7 @@ function commerce_event_ticket_create_from_order($order) {
 
     // Check that the product is configured to have tickets.
     $product = $line_item_wrapper->commerce_product->value();
-    $config = commerce_event_ticket_get_ticket_config($product);
-    if (!$config) {
+    if (!commerce_event_ticket_product_is_ticket($product)) {
       continue;
     }
 
@@ -435,7 +443,9 @@ function commerce_event_ticket_create_from_order($order) {
     $transaction = db_transaction();
     for ($number = 1; $number <= $to_create; $number++) {
       $ticket = $controller->create(array(
-        'type' => $config['type'],
+        // The commerce_event_ticket bundle is always 'ticket' for now.
+        'type' => 'ticket',
+        // Generate a secure barcode token for this individual ticket.
         'barcode_token' => commerce_event_ticket_generate_barcode_token(),
         'product_id' => $product->product_id,
         'order_id' => $order->order_id,
@@ -468,17 +478,18 @@ function commerce_event_ticket_uri($entity) {
 }
 
 /**
- * Get the event ticket configuration for a product.
+ * Find out whether a product is a ticket.
  *
  * @param stdClass $product
  *   The Commerce product object.
  *
- * @return array
- *   Event ticket configuration.
+ * @return bool
+ *   TRUE if the product is of a type that's defined as a ticket.
  */
-function commerce_event_ticket_get_ticket_config($product) {
-  dpm(t('Product @product is enabled for tickets.', array('@product' => $product->product_id)));
-  return array(
-    'type' => 'ticket',
-  );
+function commerce_event_ticket_product_is_ticket($product) {
+  $types = variable_get('commerce_event_ticket_product_types', array('ticket'));
+  if (!empty($types[$product->type])) {
+    return TRUE;
+  }
+  return FALSE;
 }

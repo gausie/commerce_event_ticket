@@ -94,3 +94,10 @@ function commerce_event_ticket_schema() {
 
   return $schema;
 }
+
+/**
+ * Implements hook_uninstall().
+ */
+function commerce_event_ticket_uninstall() {
+  variable_del('commerce_event_ticket_product_types');
+}
