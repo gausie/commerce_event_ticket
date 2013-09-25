@@ -28,11 +28,14 @@ function commerce_event_ticket_entity_info() {
     ),
     'bundles' => array(),
     'view modes' => array(
-      'full' => array(
-        'label' => t('Full content'),
+      'customer' => array(
+        'label' => t('Customer'),
       ),
-      'teaser' => array(
-        'label' => t('Teaser'),
+      'admin' => array(
+        'label' => t('Administrator'),
+      ),
+      'pdf' => array(
+        'label' => t('PDF'),
       ),
     ),
     'view callback' => 'entity_metadata_view_single',
@@ -74,66 +77,6 @@ function commerce_event_ticket_permission() {
 }
 
 /**
- * Implements hook_entity_property_info().
- */
-function commerce_event_ticket_entity_property_info() {
-  $info = array();
-  $properties = &$info['commerce_event_ticket']['properties'];
-  $properties = array(
-    'ticket_id' => array(
-      'label' => t('Ticket ID'),
-      'description' => t('Primary key'),
-      'type' => 'integer',
-      'schema field' => 'id',
-      'required' => TRUE,
-    ),
-    'type' => array(
-      'label' => t('Type'),
-      'description' => t('The type of ticket.'),
-      'type' => 'text',
-      'schema field' => 'type',
-      'required' => TRUE,
-    ),
-    'barcode_token' => array(
-      'label' => t('Barcode token'),
-      'description' => t('The barcode token for the ticket.'),
-      'type' => 'int',
-      'schema field' => 'barcode_token',
-      'required' => TRUE,
-    ),
-    'owner' => array(
-      'label' => t('Owner'),
-      'description' => t('The owner of the ticket.'),
-      'type' => 'user',
-      'schema field' => 'uid',
-      'required' => TRUE,
-    ),
-    'order' => array(
-      'label' => t('Order'),
-      'description' => t('The Commerce order associated with the ticket.'),
-      'type' => 'commerce_order',
-      'schema field' => 'order_id',
-      'required' => TRUE,
-    ),
-    'line_item' => array(
-      'label' => t('Line item'),
-      'description' => t('The Commerce line item associated with the ticket.'),
-      'type' => 'commerce_line_item',
-      'schema field' => 'line_item_id',
-      'required' => TRUE,
-    ),
-    'product' => array(
-      'label' => t('Product'),
-      'description' => t('The Commerce product associated with the ticket.'),
-      'type' => 'commerce_product',
-      'schema field' => 'product_id',
-      'required' => TRUE,
-    ),
-  );
-  return $info;
-}
-
-/**
  * Get information about Commerce Event Ticket types.
  *
  * @return array
@@ -159,24 +102,92 @@ function commerce_event_ticket_types() {
  * Implements hook_menu().
  */
 function commerce_event_ticket_menu() {
-  $items['user/%user/orders/%commerce_order/tickets/%commerce_event_ticket'] = array(
+  $items['admin/commerce/orders/%commerce_order/tickets/%commerce_event_ticket'] = array(
     'title callback' => 'commerce_event_ticket_label',
     'title arguments' => array(5),
     'page callback' => 'commerce_event_ticket_view',
-    'page arguments' => array(5, 'full'),
+    'page arguments' => array(5, 'admin'),
     'access callback' => 'commerce_event_ticket_access',
     'access arguments' => array('view', 5),
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+  );
+  $items['admin/commerce/orders/%commerce_order/tickets'] = array(
+    'title' => 'Tickets',
+    'page callback' => 'commerce_event_ticket_list',
+    'page arguments' => array(3, 'admin'),
+    'file' => 'commerce_event_ticket.pages.inc',
+    'access callback' => 'commerce_event_ticket_access_by_order',
+    'access arguments' => array(3),
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+  );
+  $items['user/%user/orders/%commerce_order/tickets'] = array(
+    'title' => 'Tickets',
+    'page callback' => 'commerce_event_ticket_list',
+    'page arguments' => array(3, 'customer'),
+    'file' => 'commerce_event_ticket.pages.inc',
+    'access callback' => 'commerce_event_ticket_access_by_order',
+    'access arguments' => array(3),
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+  );
+  $items['user/%user/orders/%commerce_order/tickets/%commerce_event_ticket'] = array(
+    'title callback' => 'commerce_event_ticket_label',
+    'title arguments' => array(5),
+    'page callback' => 'commerce_event_ticket_page',
+    'page arguments' => array(5, 'customer'),
+    'file' => 'commerce_event_ticket.pages.inc',
+    'access callback' => 'commerce_event_ticket_access',
+    'access arguments' => array('view', 5),
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
   );
   return $items;
 }
 
 /**
  * View callback for an event ticket.
- *
- * @todo
  */
-function commerce_event_ticket_view($ticket, $view_mode = 'full') {
-  return array('#markup' => '<pre>' . print_r($ticket, TRUE) . '</pre>');
+function commerce_event_ticket_view($ticket, $view_mode = 'customer') {
+  return array(
+    '#theme' => 'commerce_event_ticket',
+    '#view_mode' => $view_mode,
+    '#ticket' => $ticket,
+  );
+}
+
+/**
+ * Implements hook_theme().
+ */
+function commerce_event_ticket_theme() {
+  return array(
+    'commerce_event_ticket' => array(
+      'variables' => array(
+        'view_mode' => 'customer',
+        'ticket' => NULL,
+      ),
+      'file' => 'commerce_event_ticket.theme.inc',
+    ),
+  );
+}
+
+/**
+ * Access callback for a list of tickets attached to an order.
+ */
+function commerce_event_ticket_access_by_order($order, $account = NULL) {
+  if (!$account) {
+    $account = $GLOBALS['user'];
+  }
+  if (!user_access('view all commerce event tickets', $account)
+    && ($account->uid != $order->uid
+      || !user_access('view own commerce event tickets', $account))) {
+    return FALSE;
+  }
+  if (!_commerce_event_ticket_order_should_have_tickets($order)) {
+    return FALSE;
+  }
+  return TRUE;
 }
 
 /**
@@ -214,6 +225,25 @@ function commerce_event_ticket_load($ticket_id) {
  */
 function commerce_event_ticket_load_multiple($ticket_ids = array(), $conditions = array(), $reset = FALSE) {
   return entity_load('commerce_event_ticket', $ticket_ids, $conditions, $reset);
+}
+
+/**
+ * Get all the ticket IDs for an order.
+ */
+function commerce_event_ticket_find_by_order($order) {
+  $tickets = &drupal_static(__FUNCTION__, array());
+  if (!isset($tickets[$order->order_id])) {
+    $tickets[$order->order_id] = array();
+    // Check whether the token already exists.
+    $query = new EntityFieldQuery();
+    $query->entityCondition('entity_type', 'commerce_event_ticket')
+      ->propertyCondition('order_id', $order->order_id);
+    $result = $query->execute();
+    if (isset($result['commerce_event_ticket'])) {
+      $tickets[$order->order_id] = array_keys($result['commerce_event_ticket']);
+    }
+  }
+  return $tickets[$order->order_id];
 }
 
 /**
@@ -317,7 +347,6 @@ function commerce_event_ticket_generate_barcode_token($prefix = '', $length = 10
     );
   }
   // Make a new random token.
-  // @todo make this alterable by other modules
   $integers = range(0, 9);
   shuffle($integers);
   $token = $prefix;
@@ -334,7 +363,37 @@ function commerce_event_ticket_generate_barcode_token($prefix = '', $length = 10
   if ($count) {
     return commerce_event_ticket_generate_barcode_token($prefix, $length, $recursed + 1);
   }
+  $tokens_cache[] = $token;
   return $token;
+}
+
+/**
+ * Check whether an order should have tickets generated for it.
+ */
+function _commerce_event_ticket_order_should_have_tickets($order, $reset = FALSE) {
+  $cache = &drupal_static(__FUNCTION__, array());
+  if (!isset($cache[$order->order_id]) || $reset) {
+    $cache[$order->order_id] = FALSE;
+    $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+    // Find line items in the order.
+    foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
+      $line_item = $line_item_wrapper->value();
+
+      // Check that the line item is a product.
+      if ($line_item->type != 'product') {
+        continue;
+      }
+
+      // Check that the product is configured to have tickets.
+      $product = $line_item_wrapper->commerce_product->value();
+      $config = commerce_event_ticket_get_ticket_config($product);
+      if ($config) {
+        $cache[$order->order_id] = TRUE;
+        break;
+      }
+    }
+  }
+  return $cache[$order->order_id];
 }
 
 /**
@@ -346,6 +405,9 @@ function commerce_event_ticket_generate_barcode_token($prefix = '', $length = 10
  *   The Commerce order object.
  */
 function commerce_event_ticket_create_from_order($order) {
+  if (!_commerce_event_ticket_order_should_have_tickets($order)) {
+    return;
+  }
   $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
   // Find line items in the order.
   foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
@@ -365,12 +427,13 @@ function commerce_event_ticket_create_from_order($order) {
 
     // Check what quantity of tickets should be generated.
     $existing = commerce_event_ticket_count($line_item);
-    $quantity_new = $line_item->quantity - $existing;
+    $created = 0;
+    $to_create = $line_item->quantity - $existing;
 
     // Generate the new tickets.
     $controller = entity_get_controller('commerce_event_ticket');
     $transaction = db_transaction();
-    for ($number = 1; $number <= $quantity_new; $number++) {
+    for ($number = 1; $number <= $to_create; $number++) {
       $ticket = $controller->create(array(
         'type' => $config['type'],
         'barcode_token' => commerce_event_ticket_generate_barcode_token(),
@@ -380,13 +443,17 @@ function commerce_event_ticket_create_from_order($order) {
         'line_item_id' => $line_item->line_item_id,
         'number' => $number,
       ));
-      $controller->save($ticket, $transaction);
+      $success = $controller->save($ticket, $transaction);
+      if ($success) {
+        $created++;
+      }
     }
 
     // Log a message about the newly generated tickets.
-    watchdog('commerce_event_ticket', 'Created @new new ticket(s), of @total total, for order number @order and line item ID @line_item.', array(
-      '@new' => $quantity_new,
-      '@total' => $line_item->quantity,
+    watchdog('commerce_event_ticket', 'Created @new/@to_create new ticket(s) of @total total, for order number @order and line item ID @line_item.', array(
+      '@new' => $created,
+      '@to_create' => $to_create,
+      '@total' => intval($line_item->quantity),
       '@order' => $order->order_number,
       '@line_item' => $line_item->line_item_id,
     ));
@@ -403,8 +470,6 @@ function commerce_event_ticket_uri($entity) {
 /**
  * Get the event ticket configuration for a product.
  *
- * @todo
- *
  * @param stdClass $product
  *   The Commerce product object.
  *
@@ -412,6 +477,7 @@ function commerce_event_ticket_uri($entity) {
  *   Event ticket configuration.
  */
 function commerce_event_ticket_get_ticket_config($product) {
+  dpm(t('Product @product is enabled for tickets.', array('@product' => $product->product_id)));
   return array(
     'type' => 'ticket',
   );
