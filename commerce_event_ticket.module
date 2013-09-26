@@ -108,7 +108,7 @@ function commerce_event_ticket_menu() {
     'description' => 'Configure settings for event tickets.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('commerce_event_ticket_config'),
-    'file' => 'commerce_event_ticket.admin.inc',
+    'file' => 'includes/commerce_event_ticket.admin.inc',
     'access arguments' => array('administer commerce event ticket'),
     'type' => MENU_NORMAL_ITEM,
   );
@@ -126,7 +126,7 @@ function commerce_event_ticket_menu() {
     'title' => 'Tickets',
     'page callback' => 'commerce_event_ticket_list',
     'page arguments' => array(3, 'admin'),
-    'file' => 'commerce_event_ticket.pages.inc',
+    'file' => 'includes/commerce_event_ticket.pages.inc',
     'access callback' => 'commerce_event_ticket_access_by_order',
     'access arguments' => array(3),
     'type' => MENU_LOCAL_TASK,
@@ -136,7 +136,7 @@ function commerce_event_ticket_menu() {
     'title' => 'Tickets',
     'page callback' => 'commerce_event_ticket_list',
     'page arguments' => array(3, 'customer'),
-    'file' => 'commerce_event_ticket.pages.inc',
+    'file' => 'includes/commerce_event_ticket.pages.inc',
     'access callback' => 'commerce_event_ticket_access_by_order',
     'access arguments' => array(3),
     'type' => MENU_LOCAL_TASK,
@@ -147,7 +147,7 @@ function commerce_event_ticket_menu() {
     'title arguments' => array(5),
     'page callback' => 'commerce_event_ticket_page',
     'page arguments' => array(5, 'customer'),
-    'file' => 'commerce_event_ticket.pages.inc',
+    'file' => 'includes/commerce_event_ticket.pages.inc',
     'access callback' => 'commerce_event_ticket_access',
     'access arguments' => array('view', 5),
     'type' => MENU_LOCAL_TASK,
@@ -177,7 +177,7 @@ function commerce_event_ticket_theme() {
         'view_mode' => 'customer',
         'ticket' => NULL,
       ),
-      'file' => 'commerce_event_ticket.theme.inc',
+      'file' => 'includes/commerce_event_ticket.theme.inc',
     ),
   );
 }
@@ -195,6 +195,39 @@ function commerce_event_ticket_access_by_order($order, $account = NULL) {
     return FALSE;
   }
   if (!_commerce_event_ticket_order_should_have_tickets($order)) {
+    return FALSE;
+  }
+  return TRUE;
+}
+
+/**
+ * Validate a ticket.
+ *
+ * @param CommerceEventTicket $ticket
+ *   The ticket entity.
+ *
+ * @return bool
+ *   TRUE if the ticket is valid and may be used to enter the event, FALSE
+ *   otherwise.
+ */
+function commerce_event_ticket_is_valid(CommerceEventTicket $ticket) {
+  // Check that the ticket's line item still exists attached to the same order.
+  $query = new EntityFieldQuery();
+  $exists = $query->entityCondition('entity_type', 'commerce_line_item')
+      ->propertyCondition('order_id', $ticket->order_id)
+      ->propertyCondition('type', 'product')
+      ->count()
+      ->execute();
+  if (!$exists) {
+    return FALSE;
+  }
+  // Check the order status.
+  $order = commerce_order_load($ticket->order_id);
+  if (!in_array($order->status, variable_get('commerce_event_ticket_valid_statuses', array('complete')))) {
+    return FALSE;
+  }
+  // Check whether the order's owner is still the same as the ticket owner.
+  if ($order->uid != $ticket->uid) {
     return FALSE;
   }
   return TRUE;
@@ -223,6 +256,13 @@ function commerce_event_ticket_access($op, $entity, $account = NULL) {
 }
 
 /**
+ * Check whether an event ticket is valid.
+ */
+function commerce_event_ticket_validate($ticket) {
+
+}
+
+/**
  * Load an event ticket.
  */
 function commerce_event_ticket_load($ticket_id) {
@@ -238,13 +278,29 @@ function commerce_event_ticket_load_multiple($ticket_ids = array(), $conditions 
 }
 
 /**
+ * Load an event ticket by a given barcode token.
+ *
+ * @return CommerceEventTicket|FALSE
+ */
+function commerce_event_ticket_load_by_token($barcode_token) {
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'commerce_event_ticket')
+    ->propertyCondition('barcode_token', $barcode_token);
+  $result = $query->execute();
+  if (!empty($result['commerce_event_ticket'])) {
+
+  }
+  return FALSE;
+}
+
+/**
  * Get all the ticket IDs for an order.
  */
 function commerce_event_ticket_find_by_order($order) {
   $tickets = &drupal_static(__FUNCTION__, array());
   if (!isset($tickets[$order->order_id])) {
     $tickets[$order->order_id] = array();
-    // Check whether the token already exists.
+    // Search for all tickets with this order ID.
     $query = new EntityFieldQuery();
     $query->entityCondition('entity_type', 'commerce_event_ticket')
       ->propertyCondition('order_id', $order->order_id);
@@ -334,46 +390,45 @@ function commerce_event_ticket_count($line_item) {
 }
 
 /**
- * Generate a new barcode token for the ticket.
+ * Generate a new random barcode token for the ticket.
  *
- * @param string $prefix
- *   A prefix to prepend to the token.
+ * The core function drupal_get_token() is not used here, because barcode tokens
+ * may need to be quite short.
+ *
  * @param int $length
- *   The length of the remainder of the token.
- * @param int $recursed
- *   A count of how many times this function has recursed.
+ *   The desired length of the token (default 15).
+ * @param bool $alpha
+ *   Whether to include alphabetical characters in the token (default TRUE).
+ * @param bool $unique
+ *   Whether to check that the token is unique (default TRUE). In some cases you
+ *   may not need a unique token, e.g. if you're going to prefix it by something
+ *   else.
  *
  * @return string
  *   A random barcode token.
  */
-function commerce_event_ticket_generate_barcode_token($prefix = '', $length = 10, $recursed = 0) {
-  // Fail if the function has recursed more than 100 times.
-  if ($recursed > 100) {
-    throw new Exception(
-      t('Failed to generate a new barcode token (prefix @prefix, length @length).', array(
-        '@prefix' => $prefix,
-        '@length' => $length,
-      ))
-    );
+function commerce_event_ticket_generate_barcode_token($length = 10, $alpha = TRUE, $unique = TRUE) {
+  static $chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  // Make a new random alphanumeric token. This method below means that rand()
+  // will be called $length times. It seems to be more random than using
+  // shuffle($chars), because it allows for characters to be repeated within the
+  // token.
+  $limit = $alpha ? 35 : 9;
+  for ($token = '', $i = 0; $i < $length; $i++) {
+    $token .= $chars[rand(0, $limit)];
   }
-  // Make a new random token.
-  $integers = range(0, 9);
-  shuffle($integers);
-  $token = $prefix;
-  for ($i = 0; $i < $length; $i++) {
-    $token .= $integers[$i];
+  // Uniqueness check. Find out whether the token already exists. If it does,
+  // recurse to find a new token.
+  if ($unique) {
+    $query = new EntityFieldQuery();
+    $count = $query->entityCondition('entity_type', 'commerce_event_ticket')
+      ->propertyCondition('barcode_token', $token)
+      ->count()
+      ->execute();
+    if ($count) {
+      return commerce_event_ticket_generate_barcode_token($length, $alpha);
+    }
   }
-  // Check whether the token already exists.
-  $query = new EntityFieldQuery();
-  $query->entityCondition('entity_type', 'commerce_event_ticket')
-    ->propertyCondition('barcode_token', $token)
-    ->count();
-  $count = $query->execute();
-  // If it does already exist, then recurse to find a new token.
-  if ($count) {
-    return commerce_event_ticket_generate_barcode_token($prefix, $length, $recursed + 1);
-  }
-  $tokens_cache[] = $token;
   return $token;
 }
 
@@ -412,8 +467,10 @@ function _commerce_event_ticket_order_should_have_tickets($order, $reset = FALSE
  *
  * @param stdClass $order
  *   The Commerce order object.
+ * @param bool $recreate
+ *   Whether to recreate tickets (invalidating any old ones). Defaults to FALSE.
  */
-function commerce_event_ticket_create_from_order($order) {
+function commerce_event_ticket_create_from_order($order, $recreate = FALSE) {
   if (!_commerce_event_ticket_order_should_have_tickets($order)) {
     return;
   }
@@ -433,18 +490,30 @@ function commerce_event_ticket_create_from_order($order) {
       continue;
     }
 
-    // Check what quantity of tickets should be generated.
-    $existing = commerce_event_ticket_count($line_item);
-    $created = 0;
-    $to_create = $line_item->quantity - $existing;
+    // Find out the number of tickets to create.
+    $to_create = $line_item->quantity;
+
+    // If recreating, delete existing tickets for this line item first.
+    if ($recreate) {
+      commerce_event_ticket_delete_by_line_item($line_item);
+    }
+    // Otherwise, check the number of existing tickets for this line item.
+    else {
+      $existing = commerce_event_ticket_count($line_item);
+      $to_create -= $existing;
+      if ($existing > 0) {
+        // @todo make sure the starting $number is correct
+      }
+    }
 
     if ($to_create == 0) {
       continue;
     }
 
-    // Generate the new tickets.
+    // Create the new tickets.
     $controller = entity_get_controller('commerce_event_ticket');
     $transaction = db_transaction();
+    $created = 0;
     for ($number = 1; $number <= $to_create; $number++) {
       $ticket = $controller->create(array(
         // The commerce_event_ticket bundle is always 'ticket' for now.
@@ -478,7 +547,9 @@ function commerce_event_ticket_create_from_order($order) {
  * URI callback for Commerce Event Ticket.
  */
 function commerce_event_ticket_uri($entity) {
-  return 'user/' . $entity->uid . '/orders/' . $entity->order_id . '/tickets/' . $entity->ticket_id;
+  return array(
+    'path' => 'user/' . $entity->uid . '/orders/' . $entity->order_id . '/tickets/' . $entity->ticket_id,
+  );
 }
 
 /**
@@ -502,5 +573,8 @@ function commerce_event_ticket_product_is_ticket($product) {
  * Implements hook_views_api().
  */
 function commerce_event_ticket_views_api() {
-  return array('api' => 3);
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'commerce_event_ticket') . '/includes',
+  );
 }

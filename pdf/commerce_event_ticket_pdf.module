@@ -8,6 +8,7 @@
  * Implements hook_file_download_access().
  */
 function commerce_event_ticket_pdf_file_download_access($file_item, $entity_type, $entity) {
+  // @todo fix access denied
   if ($entity_type == 'commerce_event_ticket') {
     return commerce_event_ticket_access('view', $entity);
   }
@@ -25,14 +26,14 @@ function commerce_event_ticket_pdf_entity_delete($entity, $type) {
 /**
  * Delete the generated PDF file for a ticket.
  *
- * @param stdClass $ticket
+ * @param CommerceEventTicketEntity $ticket
  *   The ticket entity object.
  *
  * @return bool
  *   TRUE if the file was successfully deleted or never existed in the first
  *   place, FALSE on failure.
  */
-function _commerce_event_ticket_pdf_delete($ticket) {
+function _commerce_event_ticket_pdf_delete(CommerceEventTicketEntity $ticket) {
   $file = commerce_event_ticket_pdf_get_file($ticket, FALSE);
   if ($file) {
     return file_delete($file, TRUE);
@@ -43,7 +44,7 @@ function _commerce_event_ticket_pdf_delete($ticket) {
 /**
  * Get a PDF file for a ticket.
  *
- * @param stdClass $ticket
+ * @param CommerceEventTicketEntity $ticket
  *   The ticket object.
  * @param bool $create
  *   Whether to create a new file, if there isn't one already.
@@ -53,7 +54,7 @@ function _commerce_event_ticket_pdf_delete($ticket) {
  * @return stdClass|FALSE
  *   A Drupal managed file object, already saved, or FALSE on failure.
  */
-function commerce_event_ticket_pdf_get_file($ticket, $create = TRUE, $recreate = FALSE) {
+function commerce_event_ticket_pdf_get_file(CommerceEventTicketEntity $ticket, $create = TRUE, $recreate = FALSE) {
   if (!empty($ticket->pdf_fid) && !$recreate) {
     $file = file_load($ticket->pdf_fid);
     if (!$file) {
@@ -91,13 +92,13 @@ function commerce_event_ticket_pdf_get_file($ticket, $create = TRUE, $recreate =
 /**
  * Generate a PDF for a ticket.
  *
- * @param stdClass $ticket
+ * @param CommerceEventTicketEntity $ticket
  *   The ticket object.
  *
  * @return TCPDF|FALSE
  *   A TCPDF object, or FALSE on failure.
  */
-function commerce_event_ticket_pdf_generate($ticket) {
+function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $pdf = _commerce_event_ticket_pdf_get_tcpdf_instance();
   if (!$pdf) {
     watchdog('commerce_event_ticket', 'Failed to get TCPDF instance', NULL, WATCHDOG_ERROR);
@@ -113,14 +114,14 @@ function commerce_event_ticket_pdf_generate($ticket) {
   $page_width = $pdf->getPageWidth();
 
   // Create a horizontal 1D barcode at the top right of the page.
-  $pdf->write1DBarcode($ticket->barcode_token, 'C128', $page_width - 90, 10, 80, 20, NULL, array(
+  $pdf->write1DBarcode($ticket->barcode_token, 'C39', $page_width - 90, 10, 80, 20, NULL, array(
     'stretch' => TRUE,
   ));
 
   // Create a vertical 1D barcode at the top left of the page.
   $pdf->startTransform();
   $pdf->Rotate(-90);
-  $pdf->write1DBarcode($ticket->barcode_token, 'C128', 10, -10, 80, 20, NULL, array(
+  $pdf->write1DBarcode($ticket->barcode_token, 'C39', 10, -10, 80, 20, NULL, array(
     'stretch' => TRUE,
   ));
   $pdf->stopTransform();
@@ -132,7 +133,7 @@ function commerce_event_ticket_pdf_generate($ticket) {
   $pdf->setX(10);
   $pdf->setY(100);
   $pdf->SetFont('Helvetica', NULL, 12);
-  $pdf->Write(5, 'This is a test PDF.');
+  $pdf->Write(5, 'Ticket info: ' . print_r($ticket, TRUE));
 
   return $pdf;
 }
