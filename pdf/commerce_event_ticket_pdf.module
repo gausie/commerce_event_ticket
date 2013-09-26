@@ -1,0 +1,191 @@
+<?php
+/**
+ * @file
+ * PDF generation functions for the Commerce Event Ticket module.
+ */
+
+/**
+ * Implements hook_file_download_access().
+ */
+function commerce_event_ticket_pdf_file_download_access($file_item, $entity_type, $entity) {
+  if ($entity_type == 'commerce_event_ticket') {
+    return commerce_event_ticket_access('view', $entity);
+  }
+}
+
+/**
+ * Implements hook_entity_delete().
+ */
+function commerce_event_ticket_pdf_entity_delete($entity, $type) {
+  if ($type == 'commerce_event_ticket') {
+    _commerce_event_ticket_pdf_delete($entity);
+  }
+}
+
+/**
+ * Delete the generated PDF file for a ticket.
+ *
+ * @param stdClass $ticket
+ *   The ticket entity object.
+ *
+ * @return bool
+ *   TRUE if the file was successfully deleted or never existed in the first
+ *   place, FALSE on failure.
+ */
+function _commerce_event_ticket_pdf_delete($ticket) {
+  $file = commerce_event_ticket_pdf_get_file($ticket, FALSE);
+  if ($file) {
+    return file_delete($file, TRUE);
+  }
+  return TRUE;
+}
+
+/**
+ * Get a PDF file for a ticket.
+ *
+ * @param stdClass $ticket
+ *   The ticket object.
+ * @param bool $create
+ *   Whether to create a new file, if there isn't one already.
+ * @param bool $recreate
+ *   Whether to recreate (replace) the file if it already exists.
+ *
+ * @return stdClass|FALSE
+ *   A Drupal managed file object, already saved, or FALSE on failure.
+ */
+function commerce_event_ticket_pdf_get_file($ticket, $create = TRUE, $recreate = FALSE) {
+  if (!empty($ticket->pdf_fid) && !$recreate) {
+    $file = file_load($ticket->pdf_fid);
+    if (!$file) {
+      watchdog('commerce_event_ticket', 'Cannot find previously generated PDF file for ticket @ticket (file ID @fid).', array(
+        '@ticket' => $ticket->ticket_id,
+        '@fid' => $ticket->pdf_fid,
+      ), WATCHDOG_WARNING);
+    }
+    return $file;
+  }
+  if (!$create) {
+    return FALSE;
+  }
+  // Generate the PDF file.
+  $pdf = commerce_event_ticket_pdf_generate($ticket);
+  if (!$pdf) {
+    watchdog('commerce_event_ticket', 'Could not generate PDF file for ticket @ticket', array('@ticket' => $ticket->ticket_id), WATCHDOG_ERROR);
+  }
+  // Get a destination filename.
+  $filename = _commerce_event_ticket_pdf_get_filename($ticket);
+  // Get the PDF output as a string.
+  $output = $pdf->Output('', 'S');
+  // Save the generated PDF file.
+  $file = file_save_data($output, $filename, FILE_EXISTS_REPLACE);
+  if ($file) {
+    // Add a file usage record so that the file isn't inadvertently deleted.
+    file_usage_add($file, 'commerce_event_ticket', 'commerce_event_ticket', $ticket->ticket_id);
+    // Save the file ID to the ticket.
+    $ticket->pdf_fid = $file->fid;
+    entity_get_controller('commerce_event_ticket')->save($ticket);
+  }
+  return $file;
+}
+
+/**
+ * Generate a PDF for a ticket.
+ *
+ * @param stdClass $ticket
+ *   The ticket object.
+ *
+ * @return TCPDF|FALSE
+ *   A TCPDF object, or FALSE on failure.
+ */
+function commerce_event_ticket_pdf_generate($ticket) {
+  $pdf = _commerce_event_ticket_pdf_get_tcpdf_instance();
+  if (!$pdf) {
+    watchdog('commerce_event_ticket', 'Failed to get TCPDF instance', NULL, WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  // Turn off the TCPDF header (a black line).
+  $pdf->setPrintHeader(FALSE);
+
+  // Create a new PDF page.
+  $pdf->addPage();
+  // Get the page width for later calculations.
+  $page_width = $pdf->getPageWidth();
+
+  // Create a horizontal 1D barcode at the top right of the page.
+  $pdf->write1DBarcode($ticket->barcode_token, 'C128', $page_width - 90, 10, 80, 20, NULL, array(
+    'stretch' => TRUE,
+  ));
+
+  // Create a vertical 1D barcode at the top left of the page.
+  $pdf->startTransform();
+  $pdf->Rotate(-90);
+  $pdf->write1DBarcode($ticket->barcode_token, 'C128', 10, -10, 80, 20, NULL, array(
+    'stretch' => TRUE,
+  ));
+  $pdf->stopTransform();
+
+  // Create a QR code just under the horizontal barcode.
+  $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', $page_width - 60, 40, NULL, 50);
+
+  // Write some text just under the vertical barcode.
+  $pdf->setX(10);
+  $pdf->setY(100);
+  $pdf->SetFont('Helvetica', NULL, 12);
+  $pdf->Write(5, 'This is a test PDF.');
+
+  return $pdf;
+}
+
+/**
+ * Get the destination filename for a ticket PDF.
+ */
+function _commerce_event_ticket_pdf_get_filename($ticket) {
+  // Make sure the private file directory is there.
+  if (!file_exists('private://commerce_event_ticket_pdf')) {
+    mkdir('private://commerce_event_ticket_pdf', 0775, TRUE);
+  }
+  // Make the filename out of the ticket ID.
+  $filename = 'private://commerce_event_ticket_pdf/' . $ticket->ticket_id . '.pdf';
+  return $filename;
+}
+
+/**
+ * Get a TCPDF instance.
+ *
+ * @return TCPDF
+ *   A TCPDF object.
+ */
+function _commerce_event_ticket_pdf_get_tcpdf_instance() {
+  $config = array(
+    'filetype' => 'inc',
+    'filename' => 'commerce_event_ticket_pdf.config',
+    'module' => 'commerce_event_ticket_pdf',
+  );
+  return tcpdf_get_instance(array(), array(), $config);
+}
+
+/**
+ * Implements hook_theme_registry_alter().
+ */
+function commerce_event_ticket_theme_registry_alter(&$theme_registry) {
+  $theme_registry['commerce_event_ticket']['function'] = '_theme_commerce_event_ticket_pdf';
+}
+
+/**
+ * Theme override function.
+ */
+function _theme_commerce_event_ticket_pdf($variables) {
+  $ticket = $variables['ticket'];
+  $view_mode = $variables['view_mode'];
+
+  $file = commerce_event_ticket_pdf_get_file($ticket);
+  $display = t('%product (ticket @number): <a href="@file">@barcode</a>', array(
+    '%product' => $variables['product_label'],
+    '@number' => $ticket->number,
+    '@barcode' => $ticket->barcode_token,
+    '@file' => file_create_url($file->uri),
+  ));
+
+  return '<div class="commerce-event-ticket">' . $display . '</div>';
+}

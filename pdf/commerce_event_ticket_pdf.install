@@ -1,0 +1,18 @@
+<?php
+/**
+ * @file
+ * Install functions for the Commerce Event Ticket PDF module.
+ */
+
+/**
+ * Implements hook_schema_alter().
+ */
+function commerce_event_ticket_pdf_schema_alter(&$schema) {
+  $schema['commerce_event_ticket']['fields']['pdf_fid'] = array(
+    'description' => 'The {file_managed}.fid of the PDF file for this ticket.',
+    'type' => 'int',
+    'unsigned' => TRUE,
+    'not null' => FALSE,
+  );
+  $schema['commerce_event_tickets']['unique keys']['pdf_fid'] = array('pdf_fid');
+}

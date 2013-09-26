@@ -1,0 +1,5 @@
+name = Commerce Event Ticket PDF
+description = Allows PDFs to be generated for Commerce Event Ticket tickets.
+core = 7.x
+dependencies[] = commerce_event_ticket
+dependencies[] = tcpdf
