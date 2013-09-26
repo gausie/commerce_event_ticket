@@ -438,6 +438,10 @@ function commerce_event_ticket_create_from_order($order) {
     $created = 0;
     $to_create = $line_item->quantity - $existing;
 
+    if ($to_create == 0) {
+      continue;
+    }
+
     // Generate the new tickets.
     $controller = entity_get_controller('commerce_event_ticket');
     $transaction = db_transaction();
