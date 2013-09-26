@@ -497,3 +497,10 @@ function commerce_event_ticket_product_is_ticket($product) {
   }
   return FALSE;
 }
+
+/**
+ * Implements hook_views_api().
+ */
+function commerce_event_ticket_views_api() {
+  return array('api' => 3);
+}
