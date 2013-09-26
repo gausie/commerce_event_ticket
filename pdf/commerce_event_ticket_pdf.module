@@ -168,7 +168,7 @@ function _commerce_event_ticket_pdf_get_tcpdf_instance() {
 /**
  * Implements hook_theme_registry_alter().
  */
-function commerce_event_ticket_theme_registry_alter(&$theme_registry) {
+function commerce_event_ticket_pdf_theme_registry_alter(&$theme_registry) {
   $theme_registry['commerce_event_ticket']['function'] = '_theme_commerce_event_ticket_pdf';
 }
 
