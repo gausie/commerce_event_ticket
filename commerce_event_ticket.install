@@ -93,4 +93,5 @@ function commerce_event_ticket_schema() {
  */
 function commerce_event_ticket_uninstall() {
   variable_del('commerce_event_ticket_product_types');
+  variable_del('commerce_event_ticket_valid_statuses');
 }
