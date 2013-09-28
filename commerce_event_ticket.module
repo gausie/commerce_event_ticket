@@ -108,18 +108,9 @@ function commerce_event_ticket_menu() {
     'title callback' => 'commerce_event_ticket_label',
     'title arguments' => array(5),
     'page callback' => 'commerce_event_ticket_view',
-    'page arguments' => array(5, 'admin'),
-    'access callback' => 'commerce_event_ticket_access',
-    'access arguments' => array('view', 5),
-  );
-  $items['user/%user/orders/%commerce_order/tickets/%commerce_event_ticket'] = array(
-    'title callback' => 'commerce_event_ticket_label',
-    'title arguments' => array(5),
-    'page callback' => 'commerce_event_ticket_page',
-    'page arguments' => array(5, 'customer'),
-    'file' => 'includes/commerce_event_ticket.pages.inc',
-    'access callback' => 'commerce_event_ticket_access',
-    'access arguments' => array('view', 5),
+    'page arguments' => array(5),
+    'access callback' => 'commerce_event_ticket_access_by_order',
+    'access arguments' => array('view', 3),
   );
   return $items;
 }
@@ -153,7 +144,7 @@ function commerce_event_ticket_theme() {
 /**
  * Access callback for a list of tickets attached to an order.
  */
-function commerce_event_ticket_access_by_order($order, $account = NULL) {
+function commerce_event_ticket_access_by_order($op, $order, $account = NULL) {
   if (!$account) {
     $account = $GLOBALS['user'];
   }
@@ -219,11 +210,6 @@ function commerce_event_ticket_access($op, $entity, $account = NULL) {
   }
   if (!$account) {
     $account = $GLOBALS['user'];
-  }
-  if (!empty($account->uid)
-    && $account->uid == $entity->uid
-    && user_access('view own commerce event tickets', $account)) {
-    return TRUE;
   }
   if (user_access('view all commerce event tickets', $account)) {
     return TRUE;
@@ -540,7 +526,7 @@ function commerce_event_ticket_create_from_order($order, $recreate = FALSE) {
  */
 function commerce_event_ticket_uri($entity) {
   return array(
-    'path' => 'user/' . $entity->uid . '/orders/' . $entity->order_id . '/tickets/' . $entity->ticket_id,
+    'path' => 'admin/commerce/orders/' . $entity->order_id . '/tickets/' . $entity->ticket_id,
   );
 }
 
