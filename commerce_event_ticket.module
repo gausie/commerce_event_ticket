@@ -214,6 +214,13 @@ function commerce_event_ticket_access($op, $entity, $account = NULL) {
   if (user_access('view all commerce event tickets', $account)) {
     return TRUE;
   }
+  // The 'owner' of a ticket is the owner of the order.
+  if ($account->uid && user_access('view own commerce event tickets', $account)) {
+    $order = commerce_order_load($entity->order_id);
+    if ($order->uid == $account->uid) {
+      return TRUE;
+    }
+  }
   return FALSE;
 }
 
