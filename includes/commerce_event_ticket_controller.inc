@@ -11,6 +11,9 @@ class CommerceEventTicketController extends EntityAPIController {
    */
   public function save($entity, DatabaseTransaction $transaction = NULL) {
 
+    // Determine whether the entity is new.
+    $entity->is_new = empty($entity->ticket_id);
+
     // Set the 'created' and 'changed' properties.
     if (empty($entity->created)) {
       $entity->created = REQUEST_TIME;
