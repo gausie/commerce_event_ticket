@@ -49,12 +49,6 @@ function commerce_event_ticket_schema() {
         'unsigned' => TRUE,
         'not null' => TRUE,
       ),
-      'uid' => array(
-        'description' => 'The {users}.uid of the owner of this ticket.',
-        'type' => 'int',
-        'unsigned' => TRUE,
-        'not null' => TRUE,
-      ),
       'number' => array(
         'description' => 'If there are multiple tickets for a single line item, this number differentiates them.',
         'type' => 'int',
@@ -86,7 +80,6 @@ function commerce_event_ticket_schema() {
       'product_id' => array('product_id'),
       'type' => array('type'),
       'number' => array('number'),
-      'uid' => array('uid'),
       'created' => array('created'),
       'changed' => array('changed'),
     ),

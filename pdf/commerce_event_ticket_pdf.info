@@ -2,8 +2,11 @@ name = Commerce Event Ticket PDF
 description = Allows PDFs to be generated for Commerce Event Ticket tickets.
 core = 7.x
 dependencies[] = commerce_event_ticket
-dependencies[] = features
-dependencies[] = file
 dependencies[] = tcpdf
+dependencies[] = file
+
+; This isn't a Feature module, but it's convenient to use Features anyway to
+; provide the field required for storing PDFs.
+dependencies[] = features
 features[features_api][] = api:1
 features[field][] = commerce_event_ticket-ticket-commerce_event_ticket_pdf

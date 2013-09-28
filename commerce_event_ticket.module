@@ -314,21 +314,21 @@ function commerce_event_ticket_delete($ticket_id) {
 /**
  * Delete multiple event ticket(s).
  */
-function commerce_event_ticket_delete_multiple(array $ticket_ids) {
-  return entity_get_controller('commerce_event_ticket')->delete($ticket_ids);
+function commerce_event_ticket_delete_multiple(array $ticket_ids, DatabaseTransaction $transaction = NULL) {
+  return entity_get_controller('commerce_event_ticket')->delete($ticket_ids, $transaction);
 }
 
 /**
  * Delete all the tickets associated with the specified line item.
  */
-function commerce_event_ticket_delete_by_line_item($line_item) {
+function commerce_event_ticket_delete_by_line_item($line_item, DatabaseTransaction $transaction = NULL) {
   $query = new EntityFieldQuery();
   $query->entityCondition('entity_type', 'commerce_event_ticket')
     ->propertyCondition('line_item_id', $line_item->line_item_id);
   $result = $query->execute();
   if (!empty($result['commerce_event_ticket'])) {
     $ids = array_keys($result['commerce_event_ticket']);
-    commerce_event_ticket_delete_multiple($ids);
+    commerce_event_ticket_delete_multiple($ids, $transaction);
   }
 }
 
@@ -350,6 +350,15 @@ function commerce_event_ticket_label($entity) {
     '@ticket' => $entity->ticket_id,
     '@product' => $product->title,
   ));
+}
+
+/**
+ * Implements hook_commerce_checkout_complete().
+ *
+ * Create ticket(s) for the order.
+ */
+function commerce_event_ticket_commerce_checkout_complete($order) {
+  commerce_event_ticket_create_from_order($order);
 }
 
 /**
@@ -446,30 +455,40 @@ function _commerce_event_ticket_order_should_have_tickets($order, $reset = FALSE
 
 /**
  * Create event tickets for a line item.
+ *
+ * @param stdClass $line_item_wrapper
+ *   The entity metadata wrapper (from Entity API) for the line item.
+ * @param bool $recreate
+ *   Whether to recreate the ticket(s) if they have already been created.
+ *
+ * @return int
+ *   The number of tickets created.
  */
-function commerce_event_ticket_create_from_line_item($line_item) {
+function commerce_event_ticket_create_from_line_item(stdClass $line_item_wrapper, $recreate = FALSE) {
   // Check that the line item is a product.
-  if ($line_item->type != 'product') {
-    continue;
+  if ($line_item_wrapper->type->value() != 'product') {
+    return 0;
   }
 
   // Check that the product is configured to have tickets.
   $product = $line_item_wrapper->commerce_product->value();
   if (!commerce_event_ticket_product_is_ticket($product)) {
-    continue;
+    return 0;
   }
 
   // Find out the number of tickets to create.
-  $to_create = $line_item->quantity;
+  $to_create = $line_item_wrapper->quantity->value();
   if ($to_create == 0) {
-    continue;
+    return 0;
   }
 
-  $transaction = db_transaction();
+  $line_item = $line_item_wrapper->value();
+
+  $transaction = db_transaction(__FUNCTION__);
 
   // If recreating, delete existing tickets for this line item first.
   if ($recreate) {
-    commerce_event_ticket_delete_by_line_item($line_item);
+    commerce_event_ticket_delete_by_line_item($line_item, $transaction);
   }
   // Otherwise, check the number of existing tickets for this line item.
   else {
@@ -479,14 +498,14 @@ function commerce_event_ticket_create_from_line_item($line_item) {
       // @todo make sure the starting $number is correct
     }
     if ($to_create == 0) {
-      continue;
+      return 0;
     }
   }
 
   // Create the new tickets.
-  $controller = entity_get_controller('commerce_event_ticket');
   $created = 0;
   for ($number = 1; $number <= $to_create; $number++) {
+    $controller = entity_get_controller('commerce_event_ticket');
     $ticket = $controller->create(array(
       // The commerce_event_ticket bundle is always 'ticket' for now.
       'type' => 'ticket',
@@ -498,7 +517,10 @@ function commerce_event_ticket_create_from_line_item($line_item) {
       'number' => $number,
     ));
     $controller->save($ticket, $transaction);
+    $created++;
   }
+
+  return $created;
 }
 
 /**
@@ -516,9 +538,8 @@ function commerce_event_ticket_create_from_order($order, $recreate = FALSE) {
     return;
   }
   $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
-  // Find line items in the order.
   foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
-    commerce_event_ticket_create_from_line_item($line_item_wrapper->value());
+    commerce_event_ticket_create_from_line_item($line_item_wrapper, $recreate);
   }
 }
 

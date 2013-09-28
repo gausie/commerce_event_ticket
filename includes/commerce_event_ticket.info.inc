@@ -32,13 +32,6 @@ function commerce_event_ticket_entity_property_info() {
       'schema field' => 'barcode_token',
       'required' => TRUE,
     ),
-    'owner' => array(
-      'label' => t('Owner'),
-      'description' => t('The owner of the ticket.'),
-      'type' => 'user',
-      'schema field' => 'uid',
-      'required' => TRUE,
-    ),
     'order' => array(
       'label' => t('Order'),
       'description' => t('The Commerce order associated with the ticket.'),
