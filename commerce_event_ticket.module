@@ -153,9 +153,6 @@ function commerce_event_ticket_access_by_order($op, $order, $account = NULL) {
       || !user_access('view own commerce event tickets', $account))) {
     return FALSE;
   }
-  if (!_commerce_event_ticket_order_should_have_tickets($order)) {
-    return FALSE;
-  }
   return TRUE;
 }
 
@@ -180,7 +177,7 @@ function commerce_event_ticket_file_download_access($file_item, $entity_type, $e
  *
  * @todo make an API function to check based on barcode token only
  */
-function commerce_event_ticket_is_valid(CommerceEventTicket $ticket) {
+function commerce_event_ticket_is_valid(CommerceEventTicketEntity $ticket) {
   // Check that the ticket's line item still exists attached to the same order.
   $query = new EntityFieldQuery();
   $exists = $query->entityCondition('entity_type', 'commerce_line_item')
@@ -193,8 +190,7 @@ function commerce_event_ticket_is_valid(CommerceEventTicket $ticket) {
   }
   // Check the order status.
   $order = commerce_order_load($ticket->order_id);
-  // @todo make this configurable and delete the var on uninstall
-  if (!in_array($order->status, variable_get('commerce_event_ticket_valid_statuses', array('complete')))) {
+  if (!_commerce_event_ticket_check_order_status($order)) {
     return FALSE;
   }
   return TRUE;
@@ -331,9 +327,9 @@ function commerce_event_ticket_entity_delete($entity, $type) {
  */
 function commerce_event_ticket_label($entity) {
   $product = commerce_product_load($entity->product_id);
-  return t('Ticket @ticket (@product)', array(
-    '@ticket' => $entity->ticket_id,
-    '@product' => $product->title,
+  return t('Ticket !ticket - !product', array(
+    '!ticket' => $entity->ticket_id,
+    '!product' => $product->title,
   ));
 }
 
@@ -411,22 +407,46 @@ function commerce_event_ticket_generate_barcode_token($length = 10, $alpha = TRU
 }
 
 /**
- * Check whether an order should have tickets generated for it.
+ * Check the status of an order against those configured to allow tickets.
+ *
+ * @param stdClass $order
+ *   The Commerce Order entity.
+ *
+ * @return bool
+ *   TRUE if the order has one of the configured statuses that represent whether
+ *   it is complete (for the purpose of generating tickets), FALSE otherwise.
  */
-function _commerce_event_ticket_order_should_have_tickets($order, $reset = FALSE) {
+function _commerce_event_ticket_check_order_status($order) {
+  return in_array($order->status, variable_get('commerce_event_ticket_valid_statuses', array('completed')));
+}
+
+/**
+ * Check whether an order should have tickets generated for it.
+ *
+ * @param stdClass $order
+ *   The Commerce Order entity.
+ *
+ * @return bool
+ *   TRUE if the order has one of the correct statuses AND contains at least one
+ *   product which is one of the correct types. FALSE otherwise.
+ */
+function _commerce_event_ticket_order_should_have_tickets($order) {
   $cache = &drupal_static(__FUNCTION__, array());
-  if (!isset($cache[$order->order_id]) || $reset) {
-    $cache[$order->order_id] = FALSE;
+  if (!isset($cache[$order->order_id])) {
+    // Check the order status.
+    if (!_commerce_event_ticket_check_order_status($order)) {
+      $cache[$order->order_id] = FALSE;
+      return FALSE;
+    }
     $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+    $cache[$order->order_id] = FALSE;
     // Find line items in the order.
     foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
       $line_item = $line_item_wrapper->value();
-
       // Check that the line item is a product.
       if ($line_item->type != 'product') {
         continue;
       }
-
       // Check that the product is configured to have tickets.
       $product = $line_item_wrapper->commerce_product->value();
       if (commerce_event_ticket_product_is_ticket($product)) {
