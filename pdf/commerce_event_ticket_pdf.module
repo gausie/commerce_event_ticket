@@ -10,32 +10,27 @@
 function commerce_event_ticket_pdf_entity_insert($entity, $type) {
   // Generate and save a PDF file as soon as the ticket entity is created.
   if ($type == 'commerce_event_ticket') {
-    commerce_event_ticket_pdf_get_file($entity);
+    commerce_event_ticket_pdf_create($entity);
   }
 }
 
 /**
- * Get a PDF file for a ticket.
+ * Create a PDF file for a ticket.
  *
  * @param CommerceEventTicketEntity $ticket
  *   The ticket object.
- * @param bool $create
- *   Whether to create a new file, if there isn't one already.
  * @param bool $recreate
  *   Whether to recreate (replace) the file if it already exists.
  *
  * @return stdClass|FALSE
  *   A Drupal managed file object, already saved, or FALSE on failure.
  */
-function commerce_event_ticket_pdf_get_file(CommerceEventTicketEntity $ticket, $create = TRUE, $recreate = FALSE) {
+function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $recreate = FALSE) {
   if (isset($ticket->commerce_event_ticket_pdf[LANGUAGE_NONE][0]['fid']) && !$recreate) {
     $file = file_load($ticket->commerce_event_ticket_pdf[LANGUAGE_NONE][0]['fid']);
     if ($file && is_readable($file->uri)) {
       return $file;
     }
-  }
-  if (!$create) {
-    return FALSE;
   }
   // Generate the PDF file.
   $pdf = commerce_event_ticket_pdf_generate($ticket);
