@@ -27,14 +27,6 @@ function commerce_event_ticket_entity_info() {
       'bundle' => 'type',
     ),
     'bundles' => array(),
-    'view modes' => array(
-      'customer' => array(
-        'label' => t('Customer'),
-      ),
-      'admin' => array(
-        'label' => t('Administrator'),
-      ),
-    ),
     'view callback' => 'entity_metadata_view_single',
     'static cache' => TRUE,
     'fieldable' => TRUE,
@@ -135,7 +127,7 @@ function commerce_event_ticket_menu() {
 /**
  * View callback for an event ticket.
  */
-function commerce_event_ticket_view($ticket, $view_mode = 'customer') {
+function commerce_event_ticket_view($ticket, $view_mode = 'default') {
   return array(
     '#theme' => 'commerce_event_ticket',
     '#view_mode' => $view_mode,
@@ -150,7 +142,7 @@ function commerce_event_ticket_theme() {
   return array(
     'commerce_event_ticket' => array(
       'variables' => array(
-        'view_mode' => 'customer',
+        'view_mode' => 'default',
         'ticket' => NULL,
       ),
       'file' => 'includes/commerce_event_ticket.theme.inc',

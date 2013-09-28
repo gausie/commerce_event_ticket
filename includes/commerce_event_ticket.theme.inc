@@ -12,8 +12,6 @@ function template_preprocess_commerce_event_ticket(&$variables) {
   $variables['product'] = commerce_product_load($ticket->product_id);
 
   $variables['product_title'] = check_plain($variables['product']->title);
-
-  $variables['link'] = url($variables['view_mode'] == 'admin' ? 'admin/commerce/orders/' . $ticket->order_id . '/tickets/' . $ticket->ticket_id : 'user/' . $ticket->uid . '/orders/' . $ticket->order_id . '/tickets/' . $ticket->ticket_id);
 }
 
 /**
