@@ -26,16 +26,11 @@ function commerce_event_ticket_views_data() {
     'title' => t('Ticket ID'),
     'help' => t('The unique ID of the ticket.'),
     'field' => array(
-// @todo
-//      'handler' => 'commerce_event_ticket_views_handler_field',
+      'handler' => 'commerce_event_ticket_views_handler_field',
       'click sortable' => TRUE,
     ),
     'argument' => array(
-// @todo
-//      'handler' => 'commerce_event_ticket_views_handler_argument',
-//      'name field' => 'title',
       'numeric' => TRUE,
-//      'validate type' => 'ticket_id',
     ),
     'filter' => array(
       'handler' => 'views_handler_filter_numeric',

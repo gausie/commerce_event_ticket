@@ -11,3 +11,4 @@ dependencies[] = entity
 dependencies[] = rules
 files[] = includes/commerce_event_ticket_entity.inc
 files[] = includes/commerce_event_ticket_controller.inc
+files[] = includes/views/handlers/commerce_event_ticket_views_handler_field.inc
