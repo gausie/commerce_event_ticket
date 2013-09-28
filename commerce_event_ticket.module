@@ -166,34 +166,59 @@ function commerce_event_ticket_file_download_access($file_item, $entity_type, $e
 }
 
 /**
+ * Check an event ticket's barcode for admittance to the event.
+ *
+ * @param string $barcode
+ *   The barcode token (e.g. from a scanner).
+ *
+ * @return bool
+ *   TRUE if the ticket is valid and entry should be granted, FALSE otherwise.
+ */
+function commerce_event_ticket_check_barcode($barcode_token) {
+  $ticket = commerce_event_ticket_load_by_barcode($barcode_token);
+  if ($ticket) {
+    return commerce_event_ticket_is_valid($ticket);
+  }
+  return FALSE;
+}
+
+/**
  * Validate a ticket.
  *
- * @param CommerceEventTicket $ticket
+ * @param CommerceEventTicketEntity $ticket
  *   The ticket entity.
+ * @param bool $reset
+ *   Whether to re-check this ticket instead of using a static cache.
  *
  * @return bool
  *   TRUE if the ticket is valid and may be used to enter the event, FALSE
  *   otherwise.
- *
- * @todo make an API function to check based on barcode token only
  */
-function commerce_event_ticket_is_valid(CommerceEventTicketEntity $ticket) {
-  // Check that the ticket's line item still exists attached to the same order.
-  $query = new EntityFieldQuery();
-  $exists = $query->entityCondition('entity_type', 'commerce_line_item')
-      ->propertyCondition('order_id', $ticket->order_id)
-      ->propertyCondition('type', 'product')
-      ->count()
-      ->execute();
-  if (!$exists) {
-    return FALSE;
+function commerce_event_ticket_is_valid(CommerceEventTicketEntity $ticket, $reset = FALSE) {
+  $cache = &drupal_static(__FUNCTION__, array());
+  if (!isset($cache[$ticket->ticket_id]) && !$reset) {
+    // Check that the ticket's line item still exists attached to the order.
+    $query = new EntityFieldQuery();
+    $exists = $query->entityCondition('entity_type', 'commerce_line_item')
+        ->propertyCondition('line_item_id', $ticket->line_item_id)
+        ->propertyCondition('order_id', $ticket->order_id)
+        ->propertyCondition('type', 'product')
+        ->count()
+        ->execute();
+    if (!$exists) {
+      dpm('Does not exist');
+      $cache[$ticket->ticket_id] = FALSE;
+      return FALSE;
+    }
+    // Check the order status.
+    $order = commerce_order_load($ticket->order_id);
+    if (!_commerce_event_ticket_check_order_status($order)) {
+      $cache[$ticket->ticket_id] = FALSE;
+      return FALSE;
+    }
+    $cache[$ticket->ticket_id] = TRUE;
   }
-  // Check the order status.
-  $order = commerce_order_load($ticket->order_id);
-  if (!_commerce_event_ticket_check_order_status($order)) {
-    return FALSE;
-  }
-  return TRUE;
+  return $cache[$ticket->ticket_id];
 }
 
 /**
@@ -245,15 +270,15 @@ function commerce_event_ticket_load_multiple($ticket_ids = array(), $conditions 
 /**
  * Load an event ticket by a given barcode token.
  *
- * @return CommerceEventTicket|FALSE
+ * @return CommerceEventTicketEntity|FALSE
  */
-function commerce_event_ticket_load_by_token($barcode_token) {
+function commerce_event_ticket_load_by_barcode($barcode_token) {
   $query = new EntityFieldQuery();
   $query->entityCondition('entity_type', 'commerce_event_ticket')
     ->propertyCondition('barcode_token', $barcode_token);
   $result = $query->execute();
   if (!empty($result['commerce_event_ticket'])) {
-
+    return reset($result['commerce_event_ticket']);
   }
   return FALSE;
 }

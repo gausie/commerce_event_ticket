@@ -97,7 +97,7 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $pdf->setX(10);
   $pdf->setY(60);
   $pdf->SetFont('Helvetica', NULL, 12);
-  $pdf->Write(5, check_plain($product->title));
+  $pdf->Write(5, $product->title);
 
   return $pdf;
 }

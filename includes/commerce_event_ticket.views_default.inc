@@ -131,16 +131,28 @@ function commerce_event_ticket_views_default_views() {
   $handler->display->display_options['fields']['ticket_id']['id'] = 'ticket_id';
   $handler->display->display_options['fields']['ticket_id']['table'] = 'commerce_event_ticket';
   $handler->display->display_options['fields']['ticket_id']['field'] = 'ticket_id';
-  /* Field: Commerce Event Ticket: Barcode token */
-  $handler->display->display_options['fields']['barcode_token']['id'] = 'barcode_token';
-  $handler->display->display_options['fields']['barcode_token']['table'] = 'commerce_event_ticket';
-  $handler->display->display_options['fields']['barcode_token']['field'] = 'barcode_token';
+  /* Field: Commerce Event Ticket: Validity */
+  $handler->display->display_options['fields']['valid']['id'] = 'valid';
+  $handler->display->display_options['fields']['valid']['table'] = 'commerce_event_ticket';
+  $handler->display->display_options['fields']['valid']['field'] = 'valid';
+  $handler->display->display_options['fields']['valid']['label'] = 'Valid?';
+  $handler->display->display_options['fields']['valid']['not'] = 0;
   /* Field: Commerce Event Ticket: Created date */
   $handler->display->display_options['fields']['created']['id'] = 'created';
   $handler->display->display_options['fields']['created']['table'] = 'commerce_event_ticket';
   $handler->display->display_options['fields']['created']['field'] = 'created';
   $handler->display->display_options['fields']['created']['label'] = 'Created';
   $handler->display->display_options['fields']['created']['date_format'] = 'short';
+  /* Field: Ticket: PDF */
+  $handler->display->display_options['fields']['cet_pdf']['id'] = 'cet_pdf';
+  $handler->display->display_options['fields']['cet_pdf']['table'] = 'field_data_cet_pdf';
+  $handler->display->display_options['fields']['cet_pdf']['field'] = 'cet_pdf';
+  $handler->display->display_options['fields']['cet_pdf']['label'] = 'Download';
+  $handler->display->display_options['fields']['cet_pdf']['click_sort_column'] = 'fid';
+  $handler->display->display_options['fields']['cet_pdf']['type'] = 'file_download_link';
+  $handler->display->display_options['fields']['cet_pdf']['settings'] = array(
+    'text' => 'Download ticket',
+  );
 
   /* Display: Page */
   $handler = $view->new_display('page', 'Page', 'page');
@@ -148,6 +160,7 @@ function commerce_event_ticket_views_default_views() {
   $handler->display->display_options['menu']['type'] = 'normal';
   $handler->display->display_options['menu']['title'] = 'Tickets';
   $handler->display->display_options['menu']['name'] = 'management';
+
   $views[$view->name] = $view;
 
   return $views;
