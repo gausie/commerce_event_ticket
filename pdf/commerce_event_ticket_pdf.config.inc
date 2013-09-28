@@ -2,12 +2,14 @@
 /**
  * @file
  * A configuration file for Commerce Event Ticket PDF's use of TCPDF.
+ *
+ * This only sets the TCPDF cache directory.
  */
 
-/**
-  * Cache directory for temporary files (full path).
-  */
-if (!file_exists('temporary://commerce_event_ticket/cache')) {
-  mkdir('temporary://commerce_event_ticket/cache', 0775, TRUE);
+$cache_dir = 'temporary://commerce_event_ticket_pdf/cache';
+
+if (!file_exists($cache_dir)) {
+  mkdir($cache_dir, 0775, TRUE);
+  chmod($cache_dir, 0775);
 }
-define('K_PATH_CACHE', drupal_realpath('temporary://commerce_event_ticket/cache'));
+define('K_PATH_CACHE', drupal_realpath($cache_dir));

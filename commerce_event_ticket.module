@@ -119,28 +119,6 @@ function commerce_event_ticket_menu() {
     'page arguments' => array(5, 'admin'),
     'access callback' => 'commerce_event_ticket_access',
     'access arguments' => array('view', 5),
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
-  );
-  $items['admin/commerce/orders/%commerce_order/tickets'] = array(
-    'title' => 'Tickets',
-    'page callback' => 'commerce_event_ticket_list',
-    'page arguments' => array(3, 'admin'),
-    'file' => 'includes/commerce_event_ticket.pages.inc',
-    'access callback' => 'commerce_event_ticket_access_by_order',
-    'access arguments' => array(3),
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
-  );
-  $items['user/%user/orders/%commerce_order/tickets'] = array(
-    'title' => 'Tickets',
-    'page callback' => 'commerce_event_ticket_list',
-    'page arguments' => array(3, 'customer'),
-    'file' => 'includes/commerce_event_ticket.pages.inc',
-    'access callback' => 'commerce_event_ticket_access_by_order',
-    'access arguments' => array(3),
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
   );
   $items['user/%user/orders/%commerce_order/tickets/%commerce_event_ticket'] = array(
     'title callback' => 'commerce_event_ticket_label',
@@ -150,8 +128,6 @@ function commerce_event_ticket_menu() {
     'file' => 'includes/commerce_event_ticket.pages.inc',
     'access callback' => 'commerce_event_ticket_access',
     'access arguments' => array('view', 5),
-    'type' => MENU_LOCAL_TASK,
-    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
   );
   return $items;
 }
@@ -201,6 +177,15 @@ function commerce_event_ticket_access_by_order($order, $account = NULL) {
 }
 
 /**
+ * Implements hook_file_download_access().
+ */
+function commerce_event_ticket_file_download_access($file_item, $entity_type, $entity) {
+  if ($entity_type == 'commerce_event_ticket') {
+    return commerce_event_ticket_access('view', $entity);
+  }
+}
+
+/**
  * Validate a ticket.
  *
  * @param CommerceEventTicket $ticket
@@ -209,6 +194,8 @@ function commerce_event_ticket_access_by_order($order, $account = NULL) {
  * @return bool
  *   TRUE if the ticket is valid and may be used to enter the event, FALSE
  *   otherwise.
+ *
+ * @todo make an API function to check based on barcode token only
  */
 function commerce_event_ticket_is_valid(CommerceEventTicket $ticket) {
   // Check that the ticket's line item still exists attached to the same order.
@@ -223,11 +210,8 @@ function commerce_event_ticket_is_valid(CommerceEventTicket $ticket) {
   }
   // Check the order status.
   $order = commerce_order_load($ticket->order_id);
+  // @todo make this configurable and delete the var on uninstall
   if (!in_array($order->status, variable_get('commerce_event_ticket_valid_statuses', array('complete')))) {
-    return FALSE;
-  }
-  // Check whether the order's owner is still the same as the ticket owner.
-  if ($order->uid != $ticket->uid) {
     return FALSE;
   }
   return TRUE;
@@ -461,6 +445,63 @@ function _commerce_event_ticket_order_should_have_tickets($order, $reset = FALSE
 }
 
 /**
+ * Create event tickets for a line item.
+ */
+function commerce_event_ticket_create_from_line_item($line_item) {
+  // Check that the line item is a product.
+  if ($line_item->type != 'product') {
+    continue;
+  }
+
+  // Check that the product is configured to have tickets.
+  $product = $line_item_wrapper->commerce_product->value();
+  if (!commerce_event_ticket_product_is_ticket($product)) {
+    continue;
+  }
+
+  // Find out the number of tickets to create.
+  $to_create = $line_item->quantity;
+  if ($to_create == 0) {
+    continue;
+  }
+
+  $transaction = db_transaction();
+
+  // If recreating, delete existing tickets for this line item first.
+  if ($recreate) {
+    commerce_event_ticket_delete_by_line_item($line_item);
+  }
+  // Otherwise, check the number of existing tickets for this line item.
+  else {
+    $existing = commerce_event_ticket_count($line_item);
+    $to_create -= $existing;
+    if ($existing > 0) {
+      // @todo make sure the starting $number is correct
+    }
+    if ($to_create == 0) {
+      continue;
+    }
+  }
+
+  // Create the new tickets.
+  $controller = entity_get_controller('commerce_event_ticket');
+  $created = 0;
+  for ($number = 1; $number <= $to_create; $number++) {
+    $ticket = $controller->create(array(
+      // The commerce_event_ticket bundle is always 'ticket' for now.
+      'type' => 'ticket',
+      // Generate a secure barcode token for this individual ticket.
+      'barcode_token' => commerce_event_ticket_generate_barcode_token(),
+      'product_id' => $product->product_id,
+      'order_id' => $line_item->order_id,
+      'line_item_id' => $line_item->line_item_id,
+      'number' => $number,
+    ));
+    $controller->save($ticket, $transaction);
+  }
+}
+
+/**
  * Create event tickets for an order.
  *
  * This is provided as a Rules action.
@@ -477,69 +518,7 @@ function commerce_event_ticket_create_from_order($order, $recreate = FALSE) {
   $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
   // Find line items in the order.
   foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
-    $line_item = $line_item_wrapper->value();
-
-    // Check that the line item is a product.
-    if ($line_item->type != 'product') {
-      continue;
-    }
-
-    // Check that the product is configured to have tickets.
-    $product = $line_item_wrapper->commerce_product->value();
-    if (!commerce_event_ticket_product_is_ticket($product)) {
-      continue;
-    }
-
-    // Find out the number of tickets to create.
-    $to_create = $line_item->quantity;
-
-    // If recreating, delete existing tickets for this line item first.
-    if ($recreate) {
-      commerce_event_ticket_delete_by_line_item($line_item);
-    }
-    // Otherwise, check the number of existing tickets for this line item.
-    else {
-      $existing = commerce_event_ticket_count($line_item);
-      $to_create -= $existing;
-      if ($existing > 0) {
-        // @todo make sure the starting $number is correct
-      }
-    }
-
-    if ($to_create == 0) {
-      continue;
-    }
-
-    // Create the new tickets.
-    $controller = entity_get_controller('commerce_event_ticket');
-    $transaction = db_transaction();
-    $created = 0;
-    for ($number = 1; $number <= $to_create; $number++) {
-      $ticket = $controller->create(array(
-        // The commerce_event_ticket bundle is always 'ticket' for now.
-        'type' => 'ticket',
-        // Generate a secure barcode token for this individual ticket.
-        'barcode_token' => commerce_event_ticket_generate_barcode_token(),
-        'product_id' => $product->product_id,
-        'order_id' => $order->order_id,
-        'uid' => $order->uid,
-        'line_item_id' => $line_item->line_item_id,
-        'number' => $number,
-      ));
-      $success = $controller->save($ticket, $transaction);
-      if ($success) {
-        $created++;
-      }
-    }
-
-    // Log a message about the newly generated tickets.
-    watchdog('commerce_event_ticket', 'Created @new/@to_create new ticket(s) of @total total, for order number @order and line item ID @line_item.', array(
-      '@new' => $created,
-      '@to_create' => $to_create,
-      '@total' => intval($line_item->quantity),
-      '@order' => $order->order_number,
-      '@line_item' => $line_item->line_item_id,
-    ));
+    commerce_event_ticket_create_from_line_item($line_item_wrapper->value());
   }
 }
 
