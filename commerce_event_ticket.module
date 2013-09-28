@@ -34,13 +34,10 @@ function commerce_event_ticket_entity_info() {
       'admin' => array(
         'label' => t('Administrator'),
       ),
-      'pdf' => array(
-        'label' => t('PDF'),
-      ),
     ),
     'view callback' => 'entity_metadata_view_single',
     'static cache' => TRUE,
-    'fieldable' => FALSE,
+    'fieldable' => TRUE,
     'module' => 'commerce_event_ticket',
   );
 
@@ -110,7 +107,10 @@ function commerce_event_ticket_menu() {
     'page arguments' => array('commerce_event_ticket_config'),
     'file' => 'includes/commerce_event_ticket.admin.inc',
     'access arguments' => array('administer commerce event ticket'),
-    'type' => MENU_NORMAL_ITEM,
+  );
+  $items['admin/commerce/config/event-ticket/settings'] = array(
+    'title' => 'Settings',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
   );
   $items['admin/commerce/orders/%commerce_order/tickets/%commerce_event_ticket'] = array(
     'title callback' => 'commerce_event_ticket_label',
