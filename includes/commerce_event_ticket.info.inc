@@ -32,7 +32,7 @@ function commerce_event_ticket_entity_property_info() {
       'schema field' => 'barcode_token',
       'required' => TRUE,
     ),
-    'order' => array(
+    'order_id' => array(
       'label' => t('Order'),
       'description' => t('The Commerce order associated with the ticket.'),
       'type' => 'commerce_order',

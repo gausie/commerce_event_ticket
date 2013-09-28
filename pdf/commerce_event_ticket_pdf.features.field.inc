@@ -7,18 +7,18 @@
 /**
  * Implements hook_field_default_fields().
  *
- * Add a file field to event ticket entities: "commerce_event_ticket_pdf".
+ * Add a file field to event ticket entities: "cet_pdf".
  */
 function commerce_event_ticket_pdf_field_default_fields() {
   $fields = array();
 
-  $fields['commerce_event_ticket-ticket-commerce_event_ticket_pdf'] = array(
+  $fields['commerce_event_ticket-ticket-cet_pdf'] = array(
     'field_config' => array(
       'active' => '1',
       'cardinality' => '1',
       'deleted' => '0',
       'entity_types' => array('commerce_event_ticket'),
-      'field_name' => 'commerce_event_ticket_pdf',
+      'field_name' => 'cet_pdf',
       'field_permissions' => array(
         'type' => '1',
       ),
@@ -61,7 +61,7 @@ function commerce_event_ticket_pdf_field_default_fields() {
         ),
       ),
       'entity_type' => 'commerce_event_ticket',
-      'field_name' => 'commerce_event_ticket_pdf',
+      'field_name' => 'cet_pdf',
       'label' => t('PDF'),
       'required' => 0,
       'settings' => array(

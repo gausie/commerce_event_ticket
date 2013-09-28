@@ -9,4 +9,4 @@ dependencies[] = file
 ; provide the field required for storing PDFs.
 dependencies[] = features
 features[features_api][] = api:1
-features[field][] = commerce_event_ticket-ticket-commerce_event_ticket_pdf
+features[field][] = commerce_event_ticket-ticket-cet_pdf

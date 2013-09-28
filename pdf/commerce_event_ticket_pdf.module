@@ -5,10 +5,10 @@
  */
 
 /**
- * Implements hook_entity_insert().
+ * Implements hook_entity_presave().
  */
 function commerce_event_ticket_pdf_entity_insert($entity, $type) {
-  // Generate and save a PDF file as soon as the ticket entity is created.
+  // Generate and save a PDF file when the ticket entity is updated.
   if ($type == 'commerce_event_ticket') {
     commerce_event_ticket_pdf_create($entity);
   }
@@ -26,17 +26,19 @@ function commerce_event_ticket_pdf_entity_insert($entity, $type) {
  *   A Drupal managed file object, already saved, or FALSE on failure.
  */
 function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $recreate = FALSE) {
-  if (isset($ticket->commerce_event_ticket_pdf[LANGUAGE_NONE][0]['fid']) && !$recreate) {
-    $file = file_load($ticket->commerce_event_ticket_pdf[LANGUAGE_NONE][0]['fid']);
-    if ($file && is_readable($file->uri)) {
-      return $file;
-    }
+  // Use an Entity API metadata wrapper for simpler access to the file field.
+  $ticket_wrapper = entity_metadata_wrapper('commerce_event_ticket', $ticket);
+  // If the file already exists then just return that.
+  if (!empty($ticket->cet_pdf) && !$recreate) {
+    return $ticket_wrapper->cet_pdf->value();
   }
-  // Generate the PDF file.
+  // Generate a new PDF file (using the TCPDF library).
   $pdf = commerce_event_ticket_pdf_generate($ticket);
   if (!$pdf) {
     watchdog('commerce_event_ticket', 'Could not generate PDF file for ticket @ticket', array('@ticket' => $ticket->ticket_id), WATCHDOG_ERROR);
   }
+  // Get the PDF data as a string.
+  $pdf_data = $pdf->Output('', 'S');
   // Save the generated PDF file.
   $save_dir = 'private://commerce_event_ticket_pdf';
   if (!file_exists($save_dir)) {
@@ -44,11 +46,20 @@ function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $re
     chmod($save_dir, 0775);
   }
   $destination = sprintf($save_dir . '/ticket_%d.pdf', $ticket->ticket_id);
-  $file = file_save_data($pdf->Output('', 'S'), $destination, FILE_EXISTS_REPLACE);
+  $file = file_save_data($pdf_data, $destination, FILE_EXISTS_REPLACE);
   if ($file) {
-    // Save the PDF file to the ticket.
-    $ticket->commerce_event_ticket_pdf[LANGUAGE_NONE][0]['fid'] = $file->fid;
-    commerce_event_ticket_save($ticket);
+    // Ensure that the file UID is the same as the order UID.
+    // @todo can this commerce_order_load() be done through the wrapper? or is
+    // there any way to save the file with the correct UID already set?
+    $order = commerce_order_load($ticket->order_id);
+    $file->uid = $order->uid;
+    file_save($file);
+    // Save the file to the ticket.
+    $ticket_wrapper->cet_pdf->set(array(
+      'fid' => $file->fid,
+      'display' => 0,
+    ));
+    $ticket_wrapper->save();
   }
   return $file;
 }
