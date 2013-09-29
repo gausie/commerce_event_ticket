@@ -12,7 +12,7 @@ function commerce_event_ticket_views_default_views() {
 
   $view = new view();
   $view->name = 'commerce_event_tickets';
-  $view->description = t('A list of tickets.');
+  $view->description = 'A list of tickets.';
   $view->tag = 'commerce_event_ticket';
   $view->base_table = 'commerce_event_ticket';
   $view->human_name = 'Tickets';
@@ -154,18 +154,6 @@ function commerce_event_ticket_views_default_views() {
   $handler->display->display_options['fields']['title']['relationship'] = 'product_id';
   $handler->display->display_options['fields']['title']['label'] = 'Event';
   $handler->display->display_options['fields']['title']['link_to_product'] = 1;
-  /* Field: User: Name */
-  $handler->display->display_options['fields']['name']['id'] = 'name';
-  $handler->display->display_options['fields']['name']['table'] = 'users';
-  $handler->display->display_options['fields']['name']['field'] = 'name';
-  $handler->display->display_options['fields']['name']['relationship'] = 'uid';
-  $handler->display->display_options['fields']['name']['label'] = 'User';
-  /* Field: Commerce Line Item: Line item ID */
-  $handler->display->display_options['fields']['line_item_id']['id'] = 'line_item_id';
-  $handler->display->display_options['fields']['line_item_id']['table'] = 'commerce_line_item';
-  $handler->display->display_options['fields']['line_item_id']['field'] = 'line_item_id';
-  $handler->display->display_options['fields']['line_item_id']['relationship'] = 'line_item_id';
-  $handler->display->display_options['fields']['line_item_id']['label'] = 'Line item';
   /* Field: Commerce Line item: Unit price */
   $handler->display->display_options['fields']['commerce_unit_price']['id'] = 'commerce_unit_price';
   $handler->display->display_options['fields']['commerce_unit_price']['table'] = 'field_data_commerce_unit_price';
@@ -176,6 +164,12 @@ function commerce_event_ticket_views_default_views() {
   $handler->display->display_options['fields']['commerce_unit_price']['settings'] = array(
     'calculation' => FALSE,
   );
+  /* Field: User: Name */
+  $handler->display->display_options['fields']['name']['id'] = 'name';
+  $handler->display->display_options['fields']['name']['table'] = 'users';
+  $handler->display->display_options['fields']['name']['field'] = 'name';
+  $handler->display->display_options['fields']['name']['relationship'] = 'uid';
+  $handler->display->display_options['fields']['name']['label'] = 'User';
   /* Field: Commerce Event Ticket: Created date */
   $handler->display->display_options['fields']['created']['id'] = 'created';
   $handler->display->display_options['fields']['created']['table'] = 'commerce_event_ticket';
