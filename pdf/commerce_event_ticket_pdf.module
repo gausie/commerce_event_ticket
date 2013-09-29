@@ -111,12 +111,13 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   }
 
   // Add a 1D code just under the logo.
-  $barcode_1d_width = $page_width * 0.35;
-  $barcode_1d_height = 10;
+  $barcode_1d_width = 80;
+  $barcode_1d_height = 15;
   $barcode_1d_bottom = $logo_height + 20 + $barcode_1d_height;
+  $barcode_format = is_numeric($ticket->barcode_token) ? 'EAN13' : 'C128';
   $pdf->write1DBarcode(
     $ticket->barcode_token,
-    'C128',
+    $barcode_format,
     $page_width - $barcode_1d_width - 10,
     $logo_height + 20,
     $barcode_1d_width,
@@ -138,10 +139,10 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
     'header' => array(),
     'rows' => array(
       array('<b>' . t('Order date:') . '</b>', format_date($order->created)),
-      array('<b>' . t('Order number:') . '</b>', $order->order_number),
+      array('<b>' . t('Order number:') . '</b>', '<b>' . $order->order_number . '</b>'),
       array('<b>' . t('Order status:') . '</b>', commerce_order_status_get_title($order->status)),
       array('<b>' . t('Customer:') . '</b>', format_username($owner)),
-      array('<b>' . t('Event:') . '</b>', $product->title),
+      array('<b>' . t('Ticket ID:') . '</b>', $ticket->ticket_id),
     ),
     'attributes' => array(
       'cellpadding' => '10',
