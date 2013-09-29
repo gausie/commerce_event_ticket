@@ -41,7 +41,6 @@ function commerce_event_ticket_views_default_views() {
     'order_number' => 'order_number',
     'title' => 'title',
     'name' => 'name',
-    'number' => 'number',
     'line_item_id' => 'line_item_id',
     'commerce_unit_price' => 'commerce_unit_price',
     'created' => 'created',
@@ -76,13 +75,6 @@ function commerce_event_ticket_views_default_views() {
       'empty_column' => 0,
     ),
     'name' => array(
-      'sortable' => 1,
-      'default_sort_order' => 'asc',
-      'align' => '',
-      'separator' => '',
-      'empty_column' => 0,
-    ),
-    'number' => array(
       'sortable' => 1,
       'default_sort_order' => 'asc',
       'align' => '',
@@ -168,10 +160,6 @@ function commerce_event_ticket_views_default_views() {
   $handler->display->display_options['fields']['name']['field'] = 'name';
   $handler->display->display_options['fields']['name']['relationship'] = 'uid';
   $handler->display->display_options['fields']['name']['label'] = 'User';
-  /* Field: Commerce Event Ticket: Number */
-  $handler->display->display_options['fields']['number']['id'] = 'number';
-  $handler->display->display_options['fields']['number']['table'] = 'commerce_event_ticket';
-  $handler->display->display_options['fields']['number']['field'] = 'number';
   /* Field: Commerce Line Item: Line item ID */
   $handler->display->display_options['fields']['line_item_id']['id'] = 'line_item_id';
   $handler->display->display_options['fields']['line_item_id']['table'] = 'commerce_line_item';

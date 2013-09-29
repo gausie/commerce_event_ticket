@@ -526,9 +526,6 @@ function commerce_event_ticket_create_from_line_item(EntityDrupalWrapper $line_i
   else {
     $existing = commerce_event_ticket_count($line_item);
     $to_create -= $existing;
-    if ($existing > 0) {
-      // @todo make sure the starting $number is correct
-    }
     if ($to_create == 0) {
       return 0;
     }
@@ -536,7 +533,7 @@ function commerce_event_ticket_create_from_line_item(EntityDrupalWrapper $line_i
 
   // Create the new tickets.
   $created = 0;
-  for ($number = 1; $number <= $to_create; $number++) {
+  for ($i = 1; $i <= $to_create; $i++) {
     $controller = entity_get_controller('commerce_event_ticket');
     $ticket = $controller->create(array(
       // The commerce_event_ticket bundle is always 'ticket' for now.
@@ -546,7 +543,6 @@ function commerce_event_ticket_create_from_line_item(EntityDrupalWrapper $line_i
       'product_id' => $product->product_id,
       'order_id' => $line_item->order_id,
       'line_item_id' => $line_item->line_item_id,
-      'number' => $number,
     ));
     $controller->save($ticket, $transaction);
     $created++;

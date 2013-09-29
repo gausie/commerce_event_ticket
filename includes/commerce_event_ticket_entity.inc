@@ -12,7 +12,6 @@ class CommerceEventTicketEntity extends Entity {
   public $order_id;
   public $line_item_id;
   public $product_id;
-  public $number = 1;
   public $created;
   public $changed;
 

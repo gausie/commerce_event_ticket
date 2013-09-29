@@ -40,24 +40,6 @@ function commerce_event_ticket_views_data() {
     ),
   );
 
-  $data['commerce_event_ticket']['number'] = array(
-    'title' => t('Number'),
-    'help' => t('The number of the ticket within its line item.'),
-    'field' => array(
-      'handler' => 'views_handler_field_numeric',
-      'click sortable' => TRUE,
-    ),
-    'argument' => array(
-      'handler' => 'views_handler_argument_numeric',
-    ),
-    'filter' => array(
-      'handler' => 'views_handler_filter_numeric',
-    ),
-    'sort' => array(
-      'handler' => 'views_handler_sort',
-    ),
-  );
-
   $data['commerce_event_ticket']['line_item_id'] = array(
     'title' => t('Line item ID'),
     'field' => array(
@@ -117,7 +99,7 @@ function commerce_event_ticket_views_data() {
 
   $data['commerce_event_ticket']['barcode_token'] = array(
     'title' => t('Barcode token'),
-    'help' => t('The barcode token for the ticket.'),
+    'help' => t('The unique (randomly generated) barcode token for the ticket.'),
     'field' => array(
       'click sortable' => FALSE,
     ),
