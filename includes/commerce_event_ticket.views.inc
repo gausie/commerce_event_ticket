@@ -40,6 +40,71 @@ function commerce_event_ticket_views_data() {
     ),
   );
 
+  $data['commerce_event_ticket']['number'] = array(
+    'title' => t('Number'),
+    'help' => t('The number of the ticket within its line item.'),
+    'field' => array(
+      'handler' => 'views_handler_field_numeric',
+      'click sortable' => TRUE,
+    ),
+    'argument' => array(
+      'handler' => 'views_handler_argument_numeric',
+    ),
+    'filter' => array(
+      'handler' => 'views_handler_filter_numeric',
+    ),
+    'sort' => array(
+      'handler' => 'views_handler_sort',
+    ),
+  );
+
+  $data['commerce_event_ticket']['line_item_id'] = array(
+    'title' => t('Line item ID'),
+    'field' => array(
+      'handler' => 'views_handler_field_numeric',
+      'click sortable' => TRUE,
+    ),
+    'relationship' => array(
+      'title' => t('Line item'),
+      'help' => t("Relate this ticket to the line item it belongs to"),
+      'handler' => 'views_handler_relationship',
+      'base' => 'commerce_line_item',
+      'base field' => 'line_item_id',
+      'field' => 'line_item_id',
+      'label' => t('Line item'),
+    ),
+  );
+
+  $data['commerce_event_ticket']['order_id'] = array(
+    'title' => t('Order ID'),
+    'field' => array(
+      'handler' => 'commerce_order_handler_field_order',
+      'click sortable' => TRUE,
+    ),
+    'relationship' => array(
+      'title' => t('Order'),
+      'help' => t("Relate this ticket to the order it belongs to"),
+      'handler' => 'views_handler_relationship',
+      'base' => 'commerce_order',
+      'base field' => 'order_id',
+      'field' => 'order_id',
+      'label' => t('Order'),
+    ),
+  );
+
+  $data['commerce_event_ticket']['product_id'] = array(
+    'title' => t('Product ID'),
+    'relationship' => array(
+      'title' => t('Product'),
+      'help' => t("Relate this ticket to the product it belongs to"),
+      'handler' => 'views_handler_relationship',
+      'base' => 'commerce_product',
+      'base field' => 'product_id',
+      'field' => 'product_id',
+      'label' => t('Product'),
+    ),
+  );
+
   $data['commerce_event_ticket']['valid'] = array(
     'title' => t('Validity'),
     'help' => t('Whether the ticket is currently valid.'),
