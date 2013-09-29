@@ -84,20 +84,66 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $pdf->setPrintHeader(FALSE);
   $pdf->setPrintFooter(FALSE);
 
+  // Get an absolute URL to the site's front page.
+  $site_url = url('<front>', array('absolute' => TRUE));
+
+  // Set the author and creator metadata.
+  $pdf->setAuthor(variable_get('site_name'));
+  $pdf->setCreator($site_url);
+
   // Create a new PDF page.
   $pdf->addPage('P', 'A4');
   // Get the page width for later calculations.
   $page_width = $pdf->getPageWidth();
 
-  // Create a QR code in the centre of the page.
-  $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', ($page_width / 2) - 25, 10, 50, 50);
+  // Add the site logo at the top right of the page.
+  $logo_width = 30;
+  $logo_height = 0;
+  $logo_url = theme_get_setting('logo');
+  if ($logo_url) {
+    $logo_path = drupal_realpath(ltrim(parse_url($logo_url, PHP_URL_PATH), '/'));
+    if ($logo_path && is_readable($logo_path)) {
+      $logo_size = getimagesize($logo_path);
+      $logo_width = 30;
+      $logo_height = $logo_size[1] / ($logo_size[0] / 30);
+      $pdf->Image($logo_path, $page_width - $logo_width - 10, 10, $logo_width, $logo_height, NULL, $site_url);
+    }
+  }
 
-  // Write some text just under the vertical barcode.
+  // Add a 1D code just under the logo.
+  $width = $page_width * 0.35;
+  $pdf->write1DBarcode($ticket->barcode_token, 'C128', $page_width - $width - 10, $logo_height + 20, $width, 10, NULL, array(
+    'stretch' => TRUE,
+  ));
+
+  // Add a QR code in the top left of the page.
+  $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', 10, 10, 40, 40);
+
+  // Build a table of ticket information.
+  $order = commerce_order_load($ticket->order_id);
+  $owner = user_load($order->uid);
   $product = commerce_product_load($ticket->product_id);
+  $table = theme('table', array(
+    'header' => array(),
+    'rows' => array(
+      array('<b>' . t('Order date:') . '</b>', format_date($order->created)),
+      array('<b>' . t('Order number:') . '</b>', $order->order_number),
+      array('<b>' . t('Order status:') . '</b>', commerce_order_status_get_title($order->status)),
+      array('<b>' . t('Customer:') . '</b>', format_username($owner)),
+      array('<b>' . t('Event:') . '</b>', $product->title),
+    ),
+    'attributes' => array(
+      'cellpadding' => '10',
+    ),
+  ));
+
+  // Write the table starting under a heading "Ticket information".
   $pdf->setX(10);
   $pdf->setY(60);
+  $pdf->SetFont('Helvetica', NULL, 18);
+  $pdf->Write(20, t('Ticket information') . "\n");
   $pdf->SetFont('Helvetica', NULL, 12);
-  $pdf->Write(5, $product->title);
+  $pdf->writeHTML($table);
 
   return $pdf;
 }
