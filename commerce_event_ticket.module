@@ -158,11 +158,38 @@ function commerce_event_ticket_access_by_order($op, $order, $account = NULL) {
 
 /**
  * Implements hook_file_download_access().
+ *
+ * If the user can view the ticket, they should be allowed to view any attached
+ * files.
  */
 function commerce_event_ticket_file_download_access($file_item, $entity_type, $entity) {
   if ($entity_type == 'commerce_event_ticket') {
     return commerce_event_ticket_access('view', $entity);
   }
+}
+
+/**
+ * Implements hook_file_entity_access().
+ *
+ * This is the equivalent of commerce_event_ticket_file_download_access() for
+ * files that are stored as File Entity entities.
+ */
+function commerce_event_ticket_file_entity_access($op, $file, $account) {
+  if (($op == 'view' || $op == 'download') && is_object($file)) {
+    $references = file_get_file_references($file);
+    foreach ($references as $field_name => $result) {
+      if (!isset($result['commerce_event_ticket'])) {
+        return FILE_ENTITY_ACCESS_IGNORE;
+      }
+      foreach (array_keys($result['commerce_event_ticket']) as $ticket_id) {
+        $ticket = commerce_event_ticket_load($ticket_id);
+        if ($ticket && commerce_event_ticket_access('view', $ticket, $account)) {
+          return FILE_ENTITY_ACCESS_ALLOW;
+        }
+      }
+    }
+  }
+  return FILE_ENTITY_ACCESS_IGNORE;
 }
 
 /**
