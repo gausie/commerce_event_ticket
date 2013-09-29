@@ -43,7 +43,7 @@ function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $re
   $save_dir = 'private://commerce_event_ticket_pdf';
   if (!file_exists($save_dir)) {
     mkdir($save_dir, 0775, TRUE);
-    chmod($save_dir, 0775);
+    chmod(drupal_realpath($save_dir), 0775);
   }
   $destination = sprintf($save_dir . '/ticket_%d.pdf', $ticket->ticket_id);
   $file = file_save_data($pdf_data, $destination, FILE_EXISTS_REPLACE);

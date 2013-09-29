@@ -10,6 +10,6 @@ $cache_dir = 'temporary://commerce_event_ticket_pdf/cache';
 
 if (!file_exists($cache_dir)) {
   mkdir($cache_dir, 0775, TRUE);
-  chmod($cache_dir, 0775);
+  chmod(drupal_realpath($cache_dir), 0775);
 }
 define('K_PATH_CACHE', drupal_realpath($cache_dir));
