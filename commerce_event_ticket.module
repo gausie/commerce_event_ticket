@@ -348,6 +348,17 @@ function commerce_event_ticket_entity_delete($entity, $type) {
 }
 
 /**
+ * Implements hook_entity_update().
+ *
+ * Create ticket(s) for the order when it reaches the right status.
+ */
+function commerce_event_ticket_entity_update($entity, $type) {
+  if ($type == 'commerce_order') {
+    commerce_event_ticket_create_from_order($entity);
+  }
+}
+
+/**
  * Label callback for Commerce Event Ticket.
  */
 function commerce_event_ticket_label($entity) {
@@ -356,15 +367,6 @@ function commerce_event_ticket_label($entity) {
     '!ticket' => $entity->ticket_id,
     '!product' => $product->title,
   ));
-}
-
-/**
- * Implements hook_commerce_checkout_complete().
- *
- * Create ticket(s) for the order.
- */
-function commerce_event_ticket_commerce_checkout_complete($order) {
-  commerce_event_ticket_create_from_order($order);
 }
 
 /**
@@ -486,7 +488,7 @@ function _commerce_event_ticket_order_should_have_tickets($order) {
 /**
  * Create event tickets for a line item.
  *
- * @param stdClass $line_item_wrapper
+ * @param EntityDrupalWrapper $line_item_wrapper
  *   The entity metadata wrapper (from Entity API) for the line item.
  * @param bool $recreate
  *   Whether to recreate the ticket(s) if they have already been created.
@@ -494,7 +496,7 @@ function _commerce_event_ticket_order_should_have_tickets($order) {
  * @return int
  *   The number of tickets created.
  */
-function commerce_event_ticket_create_from_line_item(stdClass $line_item_wrapper, $recreate = FALSE) {
+function commerce_event_ticket_create_from_line_item(EntityDrupalWrapper $line_item_wrapper, $recreate = FALSE) {
   // Check that the line item is a product.
   if ($line_item_wrapper->type->value() != 'product') {
     return 0;
