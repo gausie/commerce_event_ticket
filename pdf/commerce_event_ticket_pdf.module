@@ -111,13 +111,24 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   }
 
   // Add a 1D code just under the logo.
-  $width = $page_width * 0.35;
-  $pdf->write1DBarcode($ticket->barcode_token, 'C128', $page_width - $width - 10, $logo_height + 20, $width, 10, NULL, array(
-    'stretch' => TRUE,
-  ));
+  $barcode_1d_width = $page_width * 0.35;
+  $barcode_1d_height = 10;
+  $barcode_1d_bottom = $logo_height + 20 + $barcode_1d_height;
+  $pdf->write1DBarcode(
+    $ticket->barcode_token,
+    'C128',
+    $page_width - $barcode_1d_width - 10,
+    $logo_height + 20,
+    $barcode_1d_width,
+    $barcode_1d_height,
+    NULL,
+    array('stretch' => TRUE)
+  );
 
   // Add a QR code in the top left of the page.
-  $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', 10, 10, 40, 40);
+  $barcode_2d_width = 40;
+  $barcode_2d_height = 40;
+  $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', 10, 10, $barcode_2d_width, $barcode_2d_height);
 
   // Build a table of ticket information.
   $order = commerce_order_load($ticket->order_id);
@@ -138,8 +149,10 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   ));
 
   // Write the table starting under a heading "Ticket information".
+  $pdf->setY($barcode_1d_bottom + 10);
+  $pdf->SetFont('Helvetica', NULL, 24);
+  $pdf->Write(20, $product->title . "\n", NULL, NULL, 'C');
   $pdf->setX(10);
-  $pdf->setY(60);
   $pdf->SetFont('Helvetica', NULL, 18);
   $pdf->Write(20, t('Ticket information') . "\n");
   $pdf->SetFont('Helvetica', NULL, 12);
