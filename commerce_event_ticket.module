@@ -107,12 +107,19 @@ function commerce_event_ticket_menu() {
   $items['admin/commerce/orders/%commerce_order/tickets/%commerce_event_ticket'] = array(
     'title callback' => 'commerce_event_ticket_label',
     'title arguments' => array(5),
-    'page callback' => 'commerce_event_ticket_view',
+    'page callback' => 'commerce_event_ticket_page',
     'page arguments' => array(5),
     'access callback' => 'commerce_event_ticket_access_by_order',
     'access arguments' => array('view', 3),
   );
   return $items;
+}
+
+/**
+ * Menu callback to view a single ticket.
+ */
+function commerce_event_ticket_page($ticket, $view_mode = NULL) {
+  return commerce_event_ticket_view($ticket, $view_mode);
 }
 
 /**
@@ -177,7 +184,7 @@ function commerce_event_ticket_file_download_access($file_item, $entity_type, $e
 function commerce_event_ticket_file_entity_access($op, $file, $account) {
   if (($op == 'view' || $op == 'download') && is_object($file)) {
     $references = file_get_file_references($file);
-    foreach ($references as $field_name => $result) {
+    foreach ($references as $result) {
       if (!isset($result['commerce_event_ticket'])) {
         return FILE_ENTITY_ACCESS_IGNORE;
       }
@@ -195,7 +202,7 @@ function commerce_event_ticket_file_entity_access($op, $file, $account) {
 /**
  * Check an event ticket's barcode for admittance to the event.
  *
- * @param string $barcode
+ * @param string $barcode_token
  *   The barcode token (e.g. from a scanner).
  *
  * @return bool
@@ -298,6 +305,7 @@ function commerce_event_ticket_load_multiple($ticket_ids = array(), $conditions 
  * Load an event ticket by a given barcode token.
  *
  * @return CommerceEventTicketEntity|FALSE
+ *   The ticket entity, or FALSE if a matching ticket does not exist.
  */
 function commerce_event_ticket_load_by_barcode($barcode_token) {
   $query = new EntityFieldQuery();
@@ -495,7 +503,7 @@ function _commerce_event_ticket_order_should_have_tickets($order) {
     $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
     $cache[$order->order_id] = FALSE;
     // Find line items in the order.
-    foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
+    foreach ($order_wrapper->commerce_line_items as $line_item_wrapper) {
       $line_item = $line_item_wrapper->value();
       // Check that the line item is a product.
       if ($line_item->type != 'product') {
@@ -581,8 +589,6 @@ function commerce_event_ticket_create_from_line_item(EntityDrupalWrapper $line_i
 /**
  * Create event tickets for an order.
  *
- * This is provided as a Rules action.
- *
  * @param stdClass $order
  *   The Commerce order object.
  * @param bool $recreate
@@ -593,7 +599,7 @@ function commerce_event_ticket_create_from_order($order, $recreate = FALSE) {
     return;
   }
   $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
-  foreach ($order_wrapper->commerce_line_items as $delta => $line_item_wrapper) {
+  foreach ($order_wrapper->commerce_line_items as $line_item_wrapper) {
     commerce_event_ticket_create_from_line_item($line_item_wrapper, $recreate);
   }
 }

@@ -1,5 +1,6 @@
 <?php
 /**
+ * @file
  * Admin functions for the Commerce Event Ticket module.
  */
 

@@ -5,7 +5,7 @@
  */
 
 /**
- * Implements hook_views_data();
+ * Implements hook_views_data().
  */
 function commerce_event_ticket_views_data() {
   $data = array();
