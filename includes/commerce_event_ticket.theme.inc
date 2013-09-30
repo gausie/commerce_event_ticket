@@ -1,5 +1,6 @@
 <?php
 /**
+ * @file
  * Theme functions for the Commerce Event Ticket module.
  */
 
@@ -24,14 +25,22 @@ function template_preprocess_commerce_event_ticket(&$variables) {
  */
 function theme_commerce_event_ticket($variables) {
   extract($variables);
-  $header = array(t('Valid?'), t('Product'), t('Order number'), t('Order date'), t('Order status'));
-  $rows = array(array(
-    $valid ? t('Yes') : t('No'),
-    $product_title,
-    l($order_number, 'admin/commerce/orders/' . $order_id),
-    $order_created,
-    $order_status,
-  ));
+  $header = array(
+    t('Valid?'),
+    t('Product'),
+    t('Order number'),
+    t('Order date'),
+    t('Order status'),
+  );
+  $rows = array(
+    array(
+      $valid ? t('Yes') : t('No'),
+      $product_title,
+      l($order_number, 'admin/commerce/orders/' . $order_id),
+      $order_created,
+      $order_status,
+    ),
+  );
   return theme('table', array(
     'header' => $header,
     'rows' => $rows,
