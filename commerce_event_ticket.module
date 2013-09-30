@@ -280,13 +280,6 @@ function commerce_event_ticket_access($op, $entity, $account = NULL) {
 }
 
 /**
- * Check whether an event ticket is valid.
- */
-function commerce_event_ticket_validate($ticket) {
-
-}
-
-/**
  * Load an event ticket.
  */
 function commerce_event_ticket_load($ticket_id) {
