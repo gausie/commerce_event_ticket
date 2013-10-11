@@ -376,12 +376,19 @@ function commerce_event_ticket_entity_delete($entity, $type) {
 }
 
 /**
+ * Implements hook_commerce_checkout_complete().
+ */
+function commerce_event_ticket_commerce_checkout_complete($order) {
+  // Attempt to create tickets for an order when checkout is completed.
+  commerce_event_ticket_create_from_order($order);
+}
+
+/**
  * Implements hook_entity_update().
- *
- * Create ticket(s) for the order when it reaches the right status.
  */
 function commerce_event_ticket_entity_update($entity, $type) {
   if ($type == 'commerce_order') {
+    // Attempt to create tickets for an order when it is updated.
     commerce_event_ticket_create_from_order($entity);
   }
 }
@@ -519,7 +526,9 @@ function _commerce_event_ticket_order_should_have_tickets($order) {
  * @param EntityDrupalWrapper $line_item_wrapper
  *   The entity metadata wrapper (from Entity API) for the line item.
  * @param bool $recreate
- *   Whether to recreate the ticket(s) if they have already been created.
+ *   Whether to recreate the ticket(s) if they have already been created. The
+ *   default is FALSE, which means that this function will have no effect if
+ *   tickets already exist for the line item.
  *
  * @return int
  *   The number of tickets created.
