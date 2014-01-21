@@ -305,7 +305,9 @@ function commerce_event_ticket_load_by_barcode($barcode_token) {
     ->propertyCondition('barcode_token', $barcode_token);
   $result = $query->execute();
   if (!empty($result['commerce_event_ticket'])) {
-    return reset($result['commerce_event_ticket']);
+    $ticket_ids = array_keys($result['commerce_event_ticket']);
+    $tickets = commerce_event_ticket_load_multiple($ticket_ids);
+    return $tickets ? reset($tickets) : FALSE;
   }
   return FALSE;
 }
