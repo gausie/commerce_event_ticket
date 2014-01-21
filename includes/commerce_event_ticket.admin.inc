@@ -18,13 +18,25 @@ function commerce_event_ticket_config($form, &$form_state) {
     '#default_value' => variable_get('commerce_event_ticket_product_types', array('ticket')),
   );
 
+  $status_options = commerce_order_status_options_list();
+
+  $form['commerce_event_ticket_statuses_create'] = array(
+    '#type' => 'select',
+    '#multiple' => TRUE,
+    '#title' => t('When to create tickets'),
+    '#description' => t('Select the order statuses that trigger the creation of ticket entities.'),
+    '#options' => $status_options,
+    '#default_value' => variable_get('commerce_event_ticket_statuses_create', array('checkout_complete')),
+    '#required' => TRUE,
+  );
+
   $form['commerce_event_ticket_valid_statuses'] = array(
     '#type' => 'select',
     '#multiple' => TRUE,
-    '#title' => t('Order statuses'),
-    '#description' => t('The order statuses that are considered to be valid to allow entry with a ticket.'),
-    '#options' => commerce_order_status_options_list(),
-    '#default_value' => variable_get('commerce_event_ticket_valid_statuses', array('completed')),
+    '#title' => t('Validating tickets'),
+    '#description' => t('Select the order statuses that are considered to be valid to allow entry with a ticket.'),
+    '#options' => $status_options,
+    '#default_value' => variable_get('commerce_event_ticket_valid_statuses', array('checkout_complete')),
   );
 
   return system_settings_form($form);

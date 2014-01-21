@@ -376,21 +376,11 @@ function commerce_event_ticket_entity_delete($entity, $type) {
 }
 
 /**
- * Implements hook_commerce_checkout_complete().
+ * Implements hook_commerce_order_update().
  */
-function commerce_event_ticket_commerce_checkout_complete($order) {
-  // Attempt to create tickets for an order when checkout is completed.
+function commerce_event_ticket_commerce_order_update($order) {
+  // Create tickets for an order when it is updated.
   commerce_event_ticket_create_from_order($order);
-}
-
-/**
- * Implements hook_entity_update().
- */
-function commerce_event_ticket_entity_update($entity, $type) {
-  if ($type == 'commerce_order') {
-    // Attempt to create tickets for an order when it is updated.
-    commerce_event_ticket_create_from_order($entity);
-  }
 }
 
 /**
@@ -469,17 +459,18 @@ function commerce_event_ticket_generate_barcode_token($length = 10, $alpha = TRU
 }
 
 /**
- * Check the status of an order against those configured to allow tickets.
+ * Check the status of an order to see whether its tickets are valid.
  *
  * @param stdClass $order
  *   The Commerce Order entity.
  *
  * @return bool
  *   TRUE if the order has one of the configured statuses that represent whether
- *   it is complete (for the purpose of generating tickets), FALSE otherwise.
+ *   it is complete (for the purpose of validating tickets), FALSE otherwise.
  */
 function _commerce_event_ticket_check_order_status($order) {
-  return in_array($order->status, variable_get('commerce_event_ticket_valid_statuses', array('completed')));
+  $valid_statuses = variable_get('commerce_event_ticket_valid_statuses', array('checkout_complete'));
+  return in_array($order->status, $valid_statuses);
 }
 
 /**
@@ -493,31 +484,36 @@ function _commerce_event_ticket_check_order_status($order) {
  *   product which is one of the correct types. FALSE otherwise.
  */
 function _commerce_event_ticket_order_should_have_tickets($order) {
-  $cache = &drupal_static(__FUNCTION__, array());
-  if (!isset($cache[$order->order_id])) {
-    // Check the order status.
-    if (!_commerce_event_ticket_check_order_status($order)) {
-      $cache[$order->order_id] = FALSE;
-      return FALSE;
-    }
-    $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+  static $cache = array();
+  if (empty($order->order_id)) {
+    return FALSE;
+  }
+  if (isset($cache[$order->order_id])) {
+    return $cache[$order->order_id];
+  }
+  // Check the order status.
+  $statuses_create = variable_get('commerce_event_ticket_statuses_create', array('checkout_complete'));
+  if (!in_array($order->status, $statuses_create)) {
     $cache[$order->order_id] = FALSE;
-    // Find line items in the order.
-    foreach ($order_wrapper->commerce_line_items as $line_item_wrapper) {
-      $line_item = $line_item_wrapper->value();
-      // Check that the line item is a product.
-      if ($line_item->type != 'product') {
-        continue;
-      }
-      // Check that the product is configured to have tickets.
-      $product = $line_item_wrapper->commerce_product->value();
-      if (commerce_event_ticket_product_is_ticket($product)) {
-        $cache[$order->order_id] = TRUE;
-        break;
-      }
+    return FALSE;
+  }
+  $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+  $cache[$order->order_id] = FALSE;
+  // Find line items in the order.
+  foreach ($order_wrapper->commerce_line_items as $line_item_wrapper) {
+    $line_item = $line_item_wrapper->value();
+    // Check that the line item is a product.
+    if ($line_item->type != 'product') {
+      continue;
+    }
+    // Check that the product is configured to have tickets.
+    $product = $line_item_wrapper->commerce_product->value();
+    if (commerce_event_ticket_product_is_ticket($product)) {
+      $cache[$order->order_id] = TRUE;
+      return TRUE;
     }
   }
-  return $cache[$order->order_id];
+  return FALSE;
 }
 
 /**
