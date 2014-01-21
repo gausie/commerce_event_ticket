@@ -300,16 +300,24 @@ function commerce_event_ticket_load_multiple($ticket_ids = array(), $conditions 
  *   The ticket entity, or FALSE if a matching ticket does not exist.
  */
 function commerce_event_ticket_load_by_barcode($barcode_token) {
-  $query = new EntityFieldQuery();
-  $query->entityCondition('entity_type', 'commerce_event_ticket')
-    ->propertyCondition('barcode_token', $barcode_token);
-  $result = $query->execute();
-  if (!empty($result['commerce_event_ticket'])) {
-    $ticket_ids = array_keys($result['commerce_event_ticket']);
-    $tickets = commerce_event_ticket_load_multiple($ticket_ids);
-    return $tickets ? reset($tickets) : FALSE;
+  static $cache = array();
+  if (isset($cache[$barcode_token])) {
+    $ticket_id = $cache[$barcode_token];
   }
-  return FALSE;
+  else {
+    $query = new EntityFieldQuery();
+    $query->entityCondition('entity_type', 'commerce_event_ticket')
+      ->propertyCondition('barcode_token', $barcode_token, 'LIKE');
+    $result = $query->execute();
+    if (empty($result['commerce_event_ticket'])) {
+      $ticket_id = FALSE;
+    }
+    else {
+      $ticket_id = reset(array_keys($result['commerce_event_ticket']));
+    }
+    $cache[$barcode_token] = $ticket_id;
+  }
+  return $ticket_id ? commerce_event_ticket_load($ticket_id) : FALSE;
 }
 
 /**
@@ -423,7 +431,7 @@ function commerce_event_ticket_count($line_item) {
  * may need to be quite short.
  *
  * @param int $length
- *   The desired length of the token (default 15).
+ *   The desired length of the token (default 10).
  * @param bool $alpha
  *   Whether to include alphabetical characters in the token (default TRUE).
  * @param bool $unique
