@@ -15,20 +15,20 @@ function commerce_event_ticket_entity_property_info() {
       'label' => t('Ticket ID'),
       'description' => t('Primary key'),
       'type' => 'integer',
-      'schema field' => 'id',
+      'schema field' => 'ticket_id',
       'required' => TRUE,
     ),
     'type' => array(
       'label' => t('Type'),
       'description' => t('The type of ticket.'),
-      'type' => 'text',
+      'type' => 'token',
       'schema field' => 'type',
       'required' => TRUE,
     ),
     'barcode_token' => array(
       'label' => t('Barcode token'),
       'description' => t('The barcode token for the ticket.'),
-      'type' => 'int',
+      'type' => 'text',
       'schema field' => 'barcode_token',
       'required' => TRUE,
     ),
@@ -39,18 +39,31 @@ function commerce_event_ticket_entity_property_info() {
       'schema field' => 'order_id',
       'required' => TRUE,
     ),
-    'line_item' => array(
+    'line_item_id' => array(
       'label' => t('Line item'),
       'description' => t('The Commerce line item associated with the ticket.'),
       'type' => 'commerce_line_item',
       'schema field' => 'line_item_id',
       'required' => TRUE,
     ),
-    'product' => array(
+    'product_id' => array(
       'label' => t('Product'),
       'description' => t('The Commerce product associated with the ticket.'),
       'type' => 'commerce_product',
       'schema field' => 'product_id',
+      'required' => TRUE,
+    ),
+    'created' => array(
+      'label' => t('Created date'),
+      'type' => 'date',
+      'description' => t('The date when the ticket was created.'),
+      'schema field' => 'created',
+    ),
+    'changed' => array(
+      'label' => t('Updated date'),
+      'type' => 'date',
+      'description' => t('The date when the ticket was last updated.'),
+      'schema field' => 'changed',
       'required' => TRUE,
     ),
   );

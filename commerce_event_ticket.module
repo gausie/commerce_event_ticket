@@ -14,6 +14,7 @@ function commerce_event_ticket_entity_info() {
     'label' => t('Ticket'),
     'entity class' => 'CommerceEventTicketEntity',
     'controller class' => 'CommerceEventTicketController',
+    'views controller class' => 'EntityDefaultViewsController',
     'uri callback' => 'commerce_event_ticket_uri',
     'access callback' => 'commerce_event_ticket_access',
     'label callback' => 'commerce_event_ticket_label',
