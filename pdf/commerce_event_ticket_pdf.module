@@ -141,11 +141,13 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $table = theme('table', array(
     'header' => array(),
     'rows' => array(
-      array('<b>' . t('Order date:') . '</b>', format_date($order->created)),
       array('<b>' . t('Order number:') . '</b>', '<b>' . $order->order_number . '</b>'),
-      array('<b>' . t('Order status:') . '</b>', commerce_order_status_get_title($order->status)),
+      array('<b>' . t('Order created:') . '</b>', format_date($order->created)),
+      array('<b>' . t('Order updated:') . '</b>', format_date($order->changed)),
       array('<b>' . t('Customer:') . '</b>', format_username($owner)),
       array('<b>' . t('Ticket ID:') . '</b>', $ticket->ticket_id),
+      array('<b>' . t('Date generated:') . '</b>', format_date(REQUEST_TIME)),
+      array('<b>' . t('Current order status:') . '</b>', commerce_order_status_get_title($order->status)),
     ),
     'attributes' => array(
       'cellpadding' => '10',
