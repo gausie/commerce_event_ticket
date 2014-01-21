@@ -240,7 +240,6 @@ function commerce_event_ticket_is_valid(CommerceEventTicketEntity $ticket, $rese
         ->count()
         ->execute();
     if (!$exists) {
-      dpm('Does not exist');
       $cache[$ticket->ticket_id] = FALSE;
       return FALSE;
     }
