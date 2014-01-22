@@ -110,7 +110,7 @@ function commerce_event_ticket_views_default_views() {
       'empty_column' => 0,
     ),
   );
-  /* Relationship: Commerce Event Ticket: Order */
+  /* Relationship: Ticket: Order */
   $handler->display->display_options['relationships']['order_id']['id'] = 'order_id';
   $handler->display->display_options['relationships']['order_id']['table'] = 'commerce_event_ticket';
   $handler->display->display_options['relationships']['order_id']['field'] = 'order_id';
@@ -121,21 +121,21 @@ function commerce_event_ticket_views_default_views() {
   $handler->display->display_options['relationships']['uid']['field'] = 'uid';
   $handler->display->display_options['relationships']['uid']['relationship'] = 'order_id';
   $handler->display->display_options['relationships']['uid']['required'] = TRUE;
-  /* Relationship: Commerce Event Ticket: Product */
+  /* Relationship: Ticket: Product */
   $handler->display->display_options['relationships']['product_id']['id'] = 'product_id';
   $handler->display->display_options['relationships']['product_id']['table'] = 'commerce_event_ticket';
   $handler->display->display_options['relationships']['product_id']['field'] = 'product_id';
   $handler->display->display_options['relationships']['product_id']['required'] = TRUE;
-  /* Relationship: Commerce Event Ticket: Line item */
+  /* Relationship: Ticket: Line item */
   $handler->display->display_options['relationships']['line_item_id']['id'] = 'line_item_id';
   $handler->display->display_options['relationships']['line_item_id']['table'] = 'commerce_event_ticket';
   $handler->display->display_options['relationships']['line_item_id']['field'] = 'line_item_id';
   $handler->display->display_options['relationships']['line_item_id']['required'] = TRUE;
-  /* Field: Commerce Event Ticket: Ticket ID */
+  /* Field: Ticket: Ticket ID */
   $handler->display->display_options['fields']['ticket_id']['id'] = 'ticket_id';
   $handler->display->display_options['fields']['ticket_id']['table'] = 'commerce_event_ticket';
   $handler->display->display_options['fields']['ticket_id']['field'] = 'ticket_id';
-  /* Field: Commerce Event Ticket: Validity */
+  /* Field: Ticket: Validity */
   $handler->display->display_options['fields']['valid']['id'] = 'valid';
   $handler->display->display_options['fields']['valid']['table'] = 'commerce_event_ticket';
   $handler->display->display_options['fields']['valid']['field'] = 'valid';
@@ -160,7 +160,6 @@ function commerce_event_ticket_views_default_views() {
   $handler->display->display_options['fields']['commerce_unit_price']['field'] = 'commerce_unit_price';
   $handler->display->display_options['fields']['commerce_unit_price']['relationship'] = 'line_item_id';
   $handler->display->display_options['fields']['commerce_unit_price']['click_sort_column'] = 'amount';
-  $handler->display->display_options['fields']['commerce_unit_price']['type'] = 'commerce_price_formatted_amount';
   $handler->display->display_options['fields']['commerce_unit_price']['settings'] = array(
     'calculation' => FALSE,
   );
@@ -170,7 +169,7 @@ function commerce_event_ticket_views_default_views() {
   $handler->display->display_options['fields']['name']['field'] = 'name';
   $handler->display->display_options['fields']['name']['relationship'] = 'uid';
   $handler->display->display_options['fields']['name']['label'] = 'User';
-  /* Field: Commerce Event Ticket: Created date */
+  /* Field: Ticket: Created date */
   $handler->display->display_options['fields']['created']['id'] = 'created';
   $handler->display->display_options['fields']['created']['table'] = 'commerce_event_ticket';
   $handler->display->display_options['fields']['created']['field'] = 'created';
