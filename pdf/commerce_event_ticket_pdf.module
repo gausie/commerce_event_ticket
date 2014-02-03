@@ -136,37 +136,88 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $barcode_2d_height = 40;
   $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', 10, 10, $barcode_2d_width, $barcode_2d_height);
 
-  // Build a table of ticket information.
-  $order = commerce_order_load($ticket->order_id);
-  $owner = user_load($order->uid);
+  // Add the product title.
   $product = commerce_product_load($ticket->product_id);
-  $table = theme('table', array(
-    'header' => array(),
-    'rows' => array(
-      array('<b>' . t('Order number:') . '</b>', '<b>' . $order->order_number . '</b>'),
-      array('<b>' . t('Order created:') . '</b>', format_date($order->created)),
-      array('<b>' . t('Order updated:') . '</b>', format_date($order->changed)),
-      array('<b>' . t('Customer:') . '</b>', format_username($owner)),
-      array('<b>' . t('Ticket ID:') . '</b>', $ticket->ticket_id),
-      array('<b>' . t('Date generated:') . '</b>', format_date(REQUEST_TIME)),
-      array('<b>' . t('Current order status:') . '</b>', commerce_order_status_get_title($order->status)),
-    ),
-    'attributes' => array(
-      'cellpadding' => '10',
-    ),
-  ));
-
-  // Write the table starting under a heading "Ticket information".
   $pdf->setY($barcode_1d_bottom + 10);
   $pdf->SetFont('Helvetica', NULL, 24);
   $pdf->Write(20, $product->title . "\n", NULL, NULL, 'C');
+
+  // Generate a table of ticket information.
+  $ticket_info = theme('commerce_event_ticket_pdf_info', array(
+    'ticket' => $ticket,
+  ));
+
+  // Write the table starting under a heading "Ticket information".
   $pdf->setX(10);
   $pdf->SetFont('Helvetica', NULL, 18);
   $pdf->Write(20, t('Ticket information') . "\n");
   $pdf->SetFont('Helvetica', NULL, 12);
-  $pdf->writeHTML($table);
+  $pdf->writeHTML($ticket_info);
+
+  // Allow other modules to alter the generated PDF.
+  drupal_alter('commerce_event_ticket_pdf', $pdf, $ticket);
 
   return $pdf;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function commerce_event_ticket_pdf_theme() {
+  return array(
+    'commerce_event_ticket_pdf_info' => array(
+      'variables' => array(
+        'ticket' => NULL,
+      ),
+    ),
+  );
+}
+
+/**
+ * Preprocess function for theming the ticket information on an event ticket.
+ */
+function template_preprocess_commerce_event_ticket_pdf_info(&$variables) {
+  $ticket = $variables['ticket'];
+  $order = commerce_order_load($ticket->order_id);
+  $owner = user_load($order->uid);
+
+  $variables['order'] = $order;
+  $variables['order_number'] = $order->order_number;
+  $variables['order_created'] = format_date($order->created);
+  $variables['order_updated'] = format_date($order->changed);
+  $variables['order_owner'] = format_username($owner);
+  $variables['order_status'] = commerce_order_status_get_title($order->status);
+
+  $variables['ticket_id'] = $ticket->ticket_id;
+  $variables['generated'] = format_date(REQUEST_TIME);
+
+  $variables['data'] = array(
+    t('Order number') => $variables['order_number'],
+    t('Order created') => $variables['order_created'],
+    t('Order updated') => $variables['order_updated'],
+    t('Customer') => $variables['order_owner'],
+    t('Ticket ID') => $variables['ticket_id'],
+    t('Date generated') => $variables['generated'],
+    t('Current order status') => $variables['order_status'],
+  );
+}
+
+/**
+ * Theme the ticket information on an event ticket.
+ */
+function theme_commerce_event_ticket_pdf_info($variables) {
+  $rows = array();
+  foreach ($variables['data'] as $label => $value) {
+    $rows[] = array('<strong>' . $label . '</strong>', $value);
+  }
+  $table = theme('table', array(
+    'header' => array(),
+    'rows' => $rows,
+    'attributes' => array(
+      'cellpadding' => '10',
+    ),
+  ));
+  return $table;
 }
 
 /**
