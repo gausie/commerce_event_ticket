@@ -39,11 +39,16 @@ function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $re
   }
   // Get the PDF data as a string.
   $pdf_data = $pdf->Output('', 'S');
-  // Create the directory for saving PDFs, if necessary.
-  $save_dir = 'private://commerce_event_ticket_pdf';
+  // Load the order.
+  $order = commerce_order_load($ticket->order_id);
+  // Create the directory for saving this PDF, if necessary. Use a directory
+  // structure that includes the date of the order - otherwise we might be
+  // creating 1000s of files in the same directory which may introduce
+  // performance issues.
+  $save_dir = 'private://commerce_event_ticket_pdf/' . date('Y/m/d', $order->created);
   if (!file_exists($save_dir)) {
-    mkdir($save_dir, 0775, TRUE);
-    chmod(drupal_realpath($save_dir), 0775);
+    mkdir($save_dir, 0755, TRUE);
+    chmod(drupal_realpath($save_dir), 0755);
   }
   // Create the filename for the PDF. The MD5 hash is a convenience; this
   // filename does not need to be secure.
@@ -52,9 +57,6 @@ function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $re
   $file = file_save_data($pdf_data, $destination, FILE_EXISTS_REPLACE);
   if ($file) {
     // Ensure that the file UID is the same as the order UID.
-    // @todo can this commerce_order_load() be done through the wrapper? or is
-    // there any way to save the file with the correct UID already set?
-    $order = commerce_order_load($ticket->order_id);
     $file->uid = $order->uid;
     file_save($file);
     // Save the file to the ticket.
