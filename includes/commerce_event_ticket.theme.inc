@@ -24,7 +24,6 @@ function template_preprocess_commerce_event_ticket(&$variables) {
  * Theme function for displaying a ticket.
  */
 function theme_commerce_event_ticket($variables) {
-  extract($variables);
   $header = array(
     t('Valid?'),
     t('Product'),
@@ -34,11 +33,11 @@ function theme_commerce_event_ticket($variables) {
   );
   $rows = array(
     array(
-      $valid ? t('Yes') : t('No'),
-      $product_title,
-      l($order_number, 'admin/commerce/orders/' . $order_id),
-      $order_created,
-      $order_status,
+      $variables['valid'] ? t('Yes') : t('No'),
+      $variables['product_title'],
+      l($variables['order_number'], 'admin/commerce/orders/' . $variables['order_id']),
+      $variables['order_created'],
+      $variables['order_status'],
     ),
   );
   return theme('table', array(

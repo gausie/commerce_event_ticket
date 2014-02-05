@@ -10,7 +10,7 @@
 function commerce_event_ticket_pdf_config($form, &$form_state) {
   $form = array();
 
-  $options = _commerce_event_pdf_elements_options();
+  $options = _commerce_event_ticket_pdf_elements_options();
   $form['commerce_event_ticket_pdf_elements'] = array(
     '#type' => 'checkboxes',
     '#title' => t('PDF elements'),

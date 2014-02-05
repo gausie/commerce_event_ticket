@@ -25,7 +25,7 @@ function commerce_event_ticket_pdf_menu() {
 /**
  * Define the options for elements to be displayed in the PDF.
  */
-function _commerce_event_pdf_elements_options() {
+function _commerce_event_ticket_pdf_elements_options() {
   return array(
     'logo' => t('Site logo'),
     'barcode_1d_horizontal' => t('1D barcode (horizontal)'),
@@ -166,7 +166,7 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $page_width = $pdf->getPageWidth();
 
   // Get the configuration for elements in the PDF.
-  $options = _commerce_event_pdf_elements_options();
+  $options = _commerce_event_ticket_pdf_elements_options();
   $elements = variable_get('commerce_event_ticket_pdf_elements', array_keys($options));
 
   // Add the site logo at the top right of the page (optionally).
@@ -196,10 +196,10 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
     $pdf->write1DBarcode(
       $ticket->barcode_token,
       $barcode_format,
-      $page_width - $barcode_1d_width - $margin,
+      $page_width - $barcode_1d_h_width - $margin,
       $logo_height ? $logo_height + 2 * $margin : $margin,
-      $barcode_1d_width,
-      $barcode_1d_height,
+      $barcode_1d_h_width,
+      $barcode_1d_h_height,
       NULL,
       array('stretch' => TRUE)
     );
@@ -207,17 +207,19 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
 
   // Add a rotated, i.e. vertical, version of the same 1D code (optionally).
   if (!empty($elements['barcode_1d_vertical'])) {
+    $barcode_1d_v_height = $barcode_1d_height;
+    $barcode_1d_v_width = $barcode_1d_width;
     $pdf->startTransform();
     $pdf->Rotate(-90);
     $x = $logo_height + ($barcode_1d_h_height ? $barcode_1d_h_height + $margin : 0) + $margin;
-    $y = -$page_width + $barcode_1d_height + $margin;
+    $y = -$page_width + $barcode_1d_v_height + $margin;
     $pdf->write1DBarcode(
       $ticket->barcode_token,
       $barcode_format,
       $x,
       $y,
-      $barcode_1d_width,
-      $barcode_1d_height,
+      $barcode_1d_v_width,
+      $barcode_1d_v_height,
       NULL,
       array('stretch' => TRUE)
     );
