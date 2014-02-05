@@ -5,6 +5,36 @@
  */
 
 /**
+ * Implements hook_menu().
+ */
+function commerce_event_ticket_pdf_menu() {
+  // The configuration form.
+  $items['admin/commerce/config/event-ticket/pdf'] = array(
+    'title' => 'PDF settings',
+    'description' => 'Configure settings for event ticket PDFs.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('commerce_event_ticket_pdf_config'),
+    'file' => 'commerce_event_ticket_pdf.admin.inc',
+    'access arguments' => array('administer commerce event ticket'),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 1,
+  );
+  return $items;
+}
+
+/**
+ * Define the options for elements to be displayed in the PDF.
+ */
+function _commerce_event_pdf_elements_options() {
+  return array(
+    'logo' => t('Site logo'),
+    'barcode_1d_horizontal' => t('1D barcode (horizontal)'),
+    'barcode_1d_vertical' => t('1D barcode (vertical)'),
+    'barcode_2d' => t('2D barcode (QR code)'),
+  );
+}
+
+/**
  * Implements hook_entity_presave().
  */
 function commerce_event_ticket_pdf_entity_insert($entity, $type) {
@@ -102,6 +132,8 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $pdf->setPrintHeader(FALSE);
   $pdf->setPrintFooter(FALSE);
 
+  $margin = 10;
+
   // Add PDF protection: disallow all operations except 'print' and
   // 'print-high'. This depends on PDF reader applications actually respecting
   // this restriction; many don't. But this does no harm.
@@ -133,49 +165,86 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   // Get the page width for later calculations.
   $page_width = $pdf->getPageWidth();
 
-  // Add the site logo at the top right of the page.
+  // Get the configuration for elements in the PDF.
+  $options = _commerce_event_pdf_elements_options();
+  $elements = variable_get('commerce_event_ticket_pdf_elements', array_keys($options));
+
+  // Add the site logo at the top right of the page (optionally).
   $logo_width = 30;
-  $logo_height = 10;
-  $logo_url = theme_get_setting('logo');
-  if ($logo_url) {
-    $logo_path = drupal_realpath(ltrim(parse_url($logo_url, PHP_URL_PATH), '/'));
-    if ($logo_path && is_readable($logo_path)) {
-      $logo_size = getimagesize($logo_path);
-      $logo_height = $logo_size[1] / ($logo_size[0] / $logo_height);
-      $pdf->Image($logo_path, $page_width - $logo_width - 10, 10, $logo_width, $logo_height, NULL, $site_url);
+  $logo_height = 0;
+  if (!empty($elements['logo'])) {
+    $logo_url = theme_get_setting('logo');
+    if ($logo_url) {
+      $logo_path = drupal_realpath(ltrim(parse_url($logo_url, PHP_URL_PATH), '/'));
+      if ($logo_path && is_readable($logo_path)) {
+        $logo_size = getimagesize($logo_path);
+        $logo_height = $logo_size[1] / ($logo_size[0] / $logo_height);
+        $pdf->Image($logo_path, $page_width - $logo_width - $margin, $margin, $logo_width, $logo_height, NULL, $site_url);
+      }
     }
   }
 
-  // Add a 1D code just under the logo.
+  // Add a 1D code just under the logo (optionally).
   $barcode_1d_width = 80;
   $barcode_1d_height = 15;
+  $barcode_1d_h_height = 0;
+  $barcode_1d_h_width = 0;
   $barcode_format = is_numeric($ticket->barcode_token) ? 'EAN13' : 'C128';
-  $pdf->write1DBarcode(
-    $ticket->barcode_token,
-    $barcode_format,
-    $page_width - $barcode_1d_width - 10,
-    $logo_height + 20,
-    $barcode_1d_width,
-    $barcode_1d_height,
-    NULL,
-    array('stretch' => TRUE)
-  );
+  if (!empty($elements['barcode_1d_horizontal'])) {
+    $barcode_1d_h_height = $barcode_1d_height;
+    $barcode_1d_h_width = $barcode_1d_width;
+    $pdf->write1DBarcode(
+      $ticket->barcode_token,
+      $barcode_format,
+      $page_width - $barcode_1d_width - $margin,
+      $logo_height ? $logo_height + 2 * $margin : $margin,
+      $barcode_1d_width,
+      $barcode_1d_height,
+      NULL,
+      array('stretch' => TRUE)
+    );
+  }
 
-  // Add a QR code in the top left of the page.
-  $barcode_2d_width = 40;
-  $barcode_2d_height = 40;
-  $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', 10, 10, $barcode_2d_width, $barcode_2d_height);
+  // Add a rotated, i.e. vertical, version of the same 1D code (optionally).
+  if (!empty($elements['barcode_1d_vertical'])) {
+    $pdf->startTransform();
+    $pdf->Rotate(-90);
+    $x = $logo_height + ($barcode_1d_h_height ? $barcode_1d_h_height + $margin : 0) + $margin;
+    $y = -$page_width + $barcode_1d_height + $margin;
+    $pdf->write1DBarcode(
+      $ticket->barcode_token,
+      $barcode_format,
+      $x,
+      $y,
+      $barcode_1d_width,
+      $barcode_1d_height,
+      NULL,
+      array('stretch' => TRUE)
+    );
+    $pdf->stopTransform();
+  }
 
-  // Generate HTML ticket information and write it to the page.
+  // Add a QR code in the top left of the page (optionally).
+  $barcode_2d_width = 0;
+  $barcode_2d_height = 0;
+  if (!empty($elements['barcode_2d'])) {
+    $barcode_2d_width = 40;
+    $barcode_2d_height = 40;
+    $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', $margin, $margin, $barcode_2d_width, $barcode_2d_height);
+  }
+
+  // Generate HTML ticket information and write it to the page. Other modules
+  // can change this information by overriding
+  // theme_commerce_event_ticket_pdf_info().
   $ticket_info = theme('commerce_event_ticket_pdf_info', array(
     'ticket' => $ticket,
   ));
-  $pdf->setX(10);
-  $pdf->setY($logo_height + 20 + $barcode_1d_height + 10);
+  $pdf->setX($margin);
+  $pdf->setY(($barcode_2d_height ? $barcode_2d_height + $margin : 0) + $margin);
   $pdf->SetFont('Helvetica', NULL, 12);
   $pdf->writeHTML($ticket_info);
 
-  // Allow other modules to alter the generated PDF.
+  // Allow other modules to alter the PDF object directly.
   drupal_alter('commerce_event_ticket_pdf', $pdf, $ticket);
 
   return $pdf;

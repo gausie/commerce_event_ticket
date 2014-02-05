@@ -1,0 +1,12 @@
+<?php
+/**
+ * @file
+ * Install functions for the Commerce Event Ticket PDF module.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function commerce_event_ticket_pdf_uninstall() {
+  variable_del('commerce_event_ticket_pdf_elements');
+}
