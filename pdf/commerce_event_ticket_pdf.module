@@ -35,10 +35,10 @@ function _commerce_event_ticket_pdf_elements_options() {
 }
 
 /**
- * Implements hook_entity_presave().
+ * Implements hook_entity_insert().
  */
 function commerce_event_ticket_pdf_entity_insert($entity, $type) {
-  // Generate and save a PDF file when the ticket entity is updated.
+  // Generate and save a PDF file when the ticket entity is first created.
   if ($type == 'commerce_event_ticket') {
     commerce_event_ticket_pdf_create($entity);
   }
@@ -167,7 +167,8 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
 
   // Get the configuration for elements in the PDF.
   $options = _commerce_event_ticket_pdf_elements_options();
-  $elements = variable_get('commerce_event_ticket_pdf_elements', array_keys($options));
+  $defaults = drupal_map_assoc(array_keys($options));
+  $elements = variable_get('commerce_event_ticket_pdf_elements', $defaults);
 
   // Add the site logo at the top right of the page (optionally).
   $logo_width = 30;
@@ -178,7 +179,7 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
       $logo_path = drupal_realpath(ltrim(parse_url($logo_url, PHP_URL_PATH), '/'));
       if ($logo_path && is_readable($logo_path)) {
         $logo_size = getimagesize($logo_path);
-        $logo_height = $logo_size[1] / ($logo_size[0] / $logo_height);
+        $logo_height = $logo_size[1] / ($logo_size[0] / $logo_width);
         $pdf->Image($logo_path, $page_width - $logo_width - $margin, $margin, $logo_width, $logo_height, NULL, $site_url);
       }
     }
@@ -187,19 +188,18 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   // Add a 1D code just under the logo (optionally).
   $barcode_1d_width = 80;
   $barcode_1d_height = 15;
-  $barcode_1d_h_height = 0;
-  $barcode_1d_h_width = 0;
+  $barcode_1d_h_top = $logo_height ? $logo_height + 2 * $margin : $margin;
+  $barcode_1d_h_bottom = 0;
   $barcode_format = is_numeric($ticket->barcode_token) ? 'EAN13' : 'C128';
   if (!empty($elements['barcode_1d_horizontal'])) {
-    $barcode_1d_h_height = $barcode_1d_height;
-    $barcode_1d_h_width = $barcode_1d_width;
+    $barcode_1d_h_bottom = $barcode_1d_h_top + $barcode_1d_height;
     $pdf->write1DBarcode(
       $ticket->barcode_token,
       $barcode_format,
-      $page_width - $barcode_1d_h_width - $margin,
-      $logo_height ? $logo_height + 2 * $margin : $margin,
-      $barcode_1d_h_width,
-      $barcode_1d_h_height,
+      $page_width - $barcode_1d_width - $margin,
+      $barcode_1d_h_top,
+      $barcode_1d_width,
+      $barcode_1d_height,
       NULL,
       array('stretch' => TRUE)
     );
@@ -207,19 +207,17 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
 
   // Add a rotated, i.e. vertical, version of the same 1D code (optionally).
   if (!empty($elements['barcode_1d_vertical'])) {
-    $barcode_1d_v_height = $barcode_1d_height;
-    $barcode_1d_v_width = $barcode_1d_width;
     $pdf->startTransform();
     $pdf->Rotate(-90);
-    $x = $logo_height + ($barcode_1d_h_height ? $barcode_1d_h_height + $margin : 0) + $margin;
-    $y = -$page_width + $barcode_1d_v_height + $margin;
+    $x = $barcode_1d_h_bottom + $margin;
+    $y = -$page_width + $barcode_1d_height + $margin;
     $pdf->write1DBarcode(
       $ticket->barcode_token,
       $barcode_format,
       $x,
       $y,
-      $barcode_1d_v_width,
-      $barcode_1d_v_height,
+      $barcode_1d_width,
+      $barcode_1d_height,
       NULL,
       array('stretch' => TRUE)
     );
