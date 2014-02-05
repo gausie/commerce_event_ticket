@@ -314,7 +314,8 @@ function commerce_event_ticket_load_by_barcode($barcode_token) {
       $ticket_id = FALSE;
     }
     else {
-      $ticket_id = reset(array_keys($result['commerce_event_ticket']));
+      $ticket_ids = array_keys($result['commerce_event_ticket']);
+      $ticket_id = reset($ticket_ids);
     }
     $cache[$barcode_token] = $ticket_id;
   }
