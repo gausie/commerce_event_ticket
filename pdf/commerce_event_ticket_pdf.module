@@ -45,6 +45,27 @@ function commerce_event_ticket_pdf_entity_insert($entity, $type) {
 }
 
 /**
+ * Implements hook_commerce_order_update().
+ */
+function commerce_event_ticket_pdf_commerce_order_update($order) {
+  // Force the re-creation of ticket PDFs, if the order status has changed, and
+  // if the order already has tickets. This ensures that the PDF always reflects
+  // the current order status, whenever it is downloaded - without having to
+  // recreate the actual ticket barcodes.
+  if ($order->status != $order->original->status
+    && _commerce_event_ticket_order_should_have_tickets($order)) {
+    // Find the tickets for the order.
+    $ticket_ids = commerce_event_ticket_find_by_order($order);
+    if ($ticket_ids) {
+      $tickets = commerce_event_ticket_load_multiple($ticket_ids);
+      foreach ($tickets as $ticket) {
+        commerce_event_ticket_pdf_create($ticket, TRUE);
+      }
+    }
+  }
+}
+
+/**
  * Create a PDF file for a ticket.
  *
  * @param CommerceEventTicketEntity $ticket
