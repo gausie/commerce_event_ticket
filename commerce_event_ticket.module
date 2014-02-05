@@ -445,13 +445,14 @@ function commerce_event_ticket_count($line_item) {
  */
 function commerce_event_ticket_generate_barcode_token($length = 10, $alpha = TRUE, $unique = TRUE) {
   static $chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  // Make a new random alphanumeric token. This method below means that rand()
-  // will be called $length times. It seems to be more random than using
-  // shuffle($chars), because it allows for characters to be repeated within the
-  // token.
   $limit = $alpha ? 35 : 9;
+  // Create the random token, using roughly the same logic as Drupal core's
+  // function, user_password().
   for ($token = '', $i = 0; $i < $length; $i++) {
-    $token .= $chars[rand(0, $limit)];
+    do {
+      $index = ord(drupal_random_bytes(1));
+    } while ($index > $limit);
+    $token .= $chars[$index];
   }
   // Uniqueness check. Find out whether the token already exists. If it does,
   // recurse to find a new token.
