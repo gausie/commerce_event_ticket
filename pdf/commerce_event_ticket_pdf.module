@@ -32,15 +32,16 @@ function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $re
   if (!empty($ticket->cet_pdf) && !$recreate) {
     return $ticket_wrapper->cet_pdf->value();
   }
+
   // Generate a new PDF file (using the TCPDF library).
   $pdf = commerce_event_ticket_pdf_generate($ticket);
   if (!$pdf) {
     watchdog('commerce_event_ticket', 'Could not generate PDF file for ticket @ticket', array('@ticket' => $ticket->ticket_id), WATCHDOG_ERROR);
   }
-  // Get the PDF data as a string.
-  $pdf_data = $pdf->Output('', 'S');
+
   // Load the order.
   $order = commerce_order_load($ticket->order_id);
+
   // Create the directory for saving this PDF, if necessary. Use a directory
   // structure that includes the date of the order - otherwise we might be
   // creating 1000s of files in the same directory which may introduce
@@ -50,11 +51,23 @@ function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $re
     mkdir($save_dir, 0755, TRUE);
     chmod(drupal_realpath($save_dir), 0755);
   }
+
   // Create the filename for the PDF. The MD5 hash is a convenience; this
   // filename does not need to be secure.
   $hash = md5($ticket->order_id . '_' . $ticket->product_id . '_' . $ticket->ticket_id);
   $destination = $save_dir . '/ticket_' . $hash . '.pdf';
+
+  // Get the PDF data as a string.
+  $pdf_data = $pdf->Output('', 'S');
+
+  // Save the PDF to a file.
   $file = file_save_data($pdf_data, $destination, FILE_EXISTS_REPLACE);
+
+  // Save memory if multiple PDFs are being generated in this process. This
+  // may or may not have any real effect, but it does no harm.
+  unset($pdf, $pdf_data);
+
+  // Link the file to the ticket entity.
   if ($file) {
     // Ensure that the file UID is the same as the order UID.
     $file->uid = $order->uid;
@@ -89,12 +102,31 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $pdf->setPrintHeader(FALSE);
   $pdf->setPrintFooter(FALSE);
 
+  // Add PDF protection: disallow all operations except 'print' and
+  // 'print-high'. This depends on PDF reader applications actually respecting
+  // this restriction; many don't. But this does no harm.
+  $block_operations = array(
+    'modify',
+    'copy',
+    'annot-forms',
+    'fill-forms',
+    'extract',
+    'assemble',
+  );
+  $password = user_password();
+  // Use AES 256-bit encryption if the mcrypt extension is installed; otherwise,
+  // fall back to RC4 128-bit.
+  $mode = extension_loaded('mcrypt') ? 3 : 1;
+  $pdf->SetProtection($block_operations, NULL, $password, $mode);
+
   // Get an absolute URL to the site's front page.
   $site_url = url('<front>', array('absolute' => TRUE));
 
-  // Set the author and creator metadata.
+  // Set PDF metadata.
   $pdf->setAuthor(variable_get('site_name'));
   $pdf->setCreator($site_url);
+  $pdf->SetTitle(t('Ticket: !id', array('!id' => $ticket->ticket_id)));
+  $pdf->SetSubject(t('Event ticket'));
 
   // Create a new PDF page.
   $pdf->addPage('P', 'A4');
@@ -103,14 +135,13 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
 
   // Add the site logo at the top right of the page.
   $logo_width = 30;
-  $logo_height = 0;
+  $logo_height = 10;
   $logo_url = theme_get_setting('logo');
   if ($logo_url) {
     $logo_path = drupal_realpath(ltrim(parse_url($logo_url, PHP_URL_PATH), '/'));
     if ($logo_path && is_readable($logo_path)) {
       $logo_size = getimagesize($logo_path);
-      $logo_width = 30;
-      $logo_height = $logo_size[1] / ($logo_size[0] / 30);
+      $logo_height = $logo_size[1] / ($logo_size[0] / $logo_height);
       $pdf->Image($logo_path, $page_width - $logo_width - 10, 10, $logo_width, $logo_height, NULL, $site_url);
     }
   }
@@ -118,7 +149,6 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   // Add a 1D code just under the logo.
   $barcode_1d_width = 80;
   $barcode_1d_height = 15;
-  $barcode_1d_bottom = $logo_height + 20 + $barcode_1d_height;
   $barcode_format = is_numeric($ticket->barcode_token) ? 'EAN13' : 'C128';
   $pdf->write1DBarcode(
     $ticket->barcode_token,
@@ -136,21 +166,12 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $barcode_2d_height = 40;
   $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', 10, 10, $barcode_2d_width, $barcode_2d_height);
 
-  // Add the product title.
-  $product = commerce_product_load($ticket->product_id);
-  $pdf->setY($barcode_1d_bottom + 10);
-  $pdf->SetFont('Helvetica', NULL, 24);
-  $pdf->Write(20, $product->title . "\n", NULL, NULL, 'C');
-
-  // Generate a table of ticket information.
+  // Generate HTML ticket information and write it to the page.
   $ticket_info = theme('commerce_event_ticket_pdf_info', array(
     'ticket' => $ticket,
   ));
-
-  // Write the table starting under a heading "Ticket information".
   $pdf->setX(10);
-  $pdf->SetFont('Helvetica', NULL, 18);
-  $pdf->Write(20, t('Ticket information') . "\n");
+  $pdf->setY($logo_height + 20 + $barcode_1d_height + 10);
   $pdf->SetFont('Helvetica', NULL, 12);
   $pdf->writeHTML($ticket_info);
 
@@ -178,27 +199,21 @@ function commerce_event_ticket_pdf_theme() {
  */
 function template_preprocess_commerce_event_ticket_pdf_info(&$variables) {
   $ticket = $variables['ticket'];
+
   $order = commerce_order_load($ticket->order_id);
+  $product = commerce_product_load($ticket->product_id);
   $owner = user_load($order->uid);
 
-  $variables['order'] = $order;
-  $variables['order_number'] = $order->order_number;
-  $variables['order_created'] = format_date($order->created);
-  $variables['order_updated'] = format_date($order->changed);
-  $variables['order_owner'] = format_username($owner);
-  $variables['order_status'] = commerce_order_status_get_title($order->status);
-
-  $variables['ticket_id'] = $ticket->ticket_id;
-  $variables['generated'] = format_date(REQUEST_TIME);
+  $variables['product_title'] = $product->title;
 
   $variables['data'] = array(
-    t('Order number') => $variables['order_number'],
-    t('Order created') => $variables['order_created'],
-    t('Order updated') => $variables['order_updated'],
-    t('Customer') => $variables['order_owner'],
-    t('Ticket ID') => $variables['ticket_id'],
-    t('Date generated') => $variables['generated'],
-    t('Current order status') => $variables['order_status'],
+    t('Order number') => $order->order_number,
+    t('Order created') => format_date($order->created),
+    t('Order updated') => format_date($order->changed),
+    t('Customer') => format_username($owner),
+    t('Ticket ID') => $ticket->ticket_id,
+    t('Date generated') => format_date(REQUEST_TIME),
+    t('Current order status') => commerce_order_status_get_title($order->status),
   );
 }
 
@@ -206,18 +221,30 @@ function template_preprocess_commerce_event_ticket_pdf_info(&$variables) {
  * Theme the ticket information on an event ticket.
  */
 function theme_commerce_event_ticket_pdf_info($variables) {
+  $output = array();
+  $output['title'] = array(
+    '#prefix' => '<h1>',
+    '#suffix' => '</h1>',
+    '#markup' => t('Product: !title', array('!title' => $variables['product_title'])),
+  );
+  $output['subtitle'] = array(
+    '#prefix' => '<h2>',
+    '#suffix' => '</h2>',
+    '#markup' => t('Ticket information'),
+  );
   $rows = array();
   foreach ($variables['data'] as $label => $value) {
     $rows[] = array('<strong>' . $label . '</strong>', $value);
   }
-  $table = theme('table', array(
-    'header' => array(),
-    'rows' => $rows,
-    'attributes' => array(
+  $output['table'] = array(
+    '#theme' => 'table',
+    '#header' => array(),
+    '#rows' => $rows,
+    '#attributes' => array(
       'cellpadding' => '10',
     ),
-  ));
-  return $table;
+  );
+  return drupal_render($output);
 }
 
 /**
