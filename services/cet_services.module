@@ -79,7 +79,6 @@ function cet_services_default_services_endpoint() {
   $endpoint->path = 'cet';
   $endpoint->authentication = array(
     'services' => 'services',
-    'services_oauth' => 'services_oauth',
   );
   $endpoint->server_settings = array();
   $endpoint->resources = array(
