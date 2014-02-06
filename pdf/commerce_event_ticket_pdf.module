@@ -158,23 +158,6 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $pdf->SetAutoPageBreak(TRUE, $page_margin);
   $pdf->SetMargins($page_margin, $page_margin);
 
-  // Add PDF protection: disallow all operations except 'print' and
-  // 'print-high'. This depends on PDF reader applications actually respecting
-  // this restriction; many don't. But this does no harm.
-  $block_operations = array(
-    'modify',
-    'copy',
-    'annot-forms',
-    'fill-forms',
-    'extract',
-    'assemble',
-  );
-  $password = user_password();
-  // Use AES 256-bit encryption if the mcrypt extension is installed; otherwise,
-  // fall back to RC4 128-bit.
-  $mode = extension_loaded('mcrypt') ? 3 : 1;
-  $pdf->SetProtection($block_operations, NULL, $password, $mode);
-
   // Get an absolute URL to the site's front page.
   $site_url = url('<front>', array('absolute' => TRUE));
 
