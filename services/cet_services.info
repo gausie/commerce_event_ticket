@@ -1,0 +1,7 @@
+name = Commerce Event Ticket Services
+description = Allows tickets to be validated via a web service.
+core = 7.x
+dependencies[] = commerce_event_ticket
+dependencies[] = services
+dependencies[] = services_oauth
+dependencies[] = rest_server

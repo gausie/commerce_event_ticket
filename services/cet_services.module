@@ -1,0 +1,100 @@
+<?php
+/**
+ * @file
+ * Main file for the Commerce Event Ticket Services module.
+ */
+
+/**
+ * Implements hook_ctools_plugin_api().
+ */
+function cet_services_ctools_plugin_api($owner, $api) {
+  if ($owner == 'services' && $api == 'services') {
+    return array('version' => 3);
+  }
+}
+
+/**
+ * Implements hook_services_resources().
+ */
+function cet_services_services_resources() {
+  return array(
+    'ticket' => array(
+      'operations' => array(
+        'retrieve' => array(
+          'help' => t('Get event ticket information.'),
+          'callback' => 'cet_services_retrieve_ticket',
+          'file' => array(
+            'file' => 'inc',
+            'module' => 'cet_services',
+            'name' => 'cet_services_resource',
+          ),
+          'access callback' => 'cet_services_access_ticket',
+          'access arguments' => array('view'),
+          'access arguments append' => TRUE,
+          'args' => array(
+            array(
+              'name' => 'barcode',
+              'type' => 'string',
+              'description' => t('The barcode token for the event ticket.'),
+              'source' => array('path' => '0'),
+              'optional' => FALSE,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/**
+ * Access callback for a ticket.
+ */
+function cet_services_access_ticket($op, $args) {
+  switch ($op) {
+    case 'view':
+      $ticket = FALSE;
+      if (!empty($args['barcode'])) {
+        $ticket = commerce_event_ticket_load_by_barcode($args['barcode']);
+      }
+      if (!$ticket) {
+        return user_access('view all commerce event tickets');
+      }
+      return commerce_event_ticket_access('view', $ticket);
+
+  }
+  return FALSE;
+}
+
+/**
+ * Implements hook_default_services_endpoint().
+ */
+function cet_services_default_services_endpoint() {
+  $endpoints = array();
+
+  $endpoint = new stdClass();
+  $endpoint->disabled = FALSE; /* Edit this to true to make a default endpoint disabled initially */
+  $endpoint->api_version = 3;
+  $endpoint->name = 'commerce_event_ticket';
+  $endpoint->server = 'rest_server';
+  $endpoint->path = 'cet';
+  $endpoint->authentication = array(
+    'services' => 'services',
+    'services_oauth' => 'services_oauth',
+  );
+  $endpoint->server_settings = array();
+  $endpoint->resources = array(
+    'ticket' => array(
+      'operations' => array(
+        'retrieve' => array(
+          'enabled' => '1',
+          'settings' => array(),
+        ),
+      ),
+    ),
+  );
+  $endpoint->debug = 0;
+
+  $endpoints[] = $endpoint;
+
+  return $endpoints;
+}
