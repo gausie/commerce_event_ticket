@@ -153,7 +153,10 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $pdf->setPrintHeader(FALSE);
   $pdf->setPrintFooter(FALSE);
 
-  $margin = 10;
+  $page_margin = 10; // @todo make configurable
+  $inner_padding = 10;
+  $pdf->SetAutoPageBreak(TRUE, $page_margin);
+  $pdf->SetMargins($page_margin, $page_margin);
 
   // Add PDF protection: disallow all operations except 'print' and
   // 'print-high'. This depends on PDF reader applications actually respecting
@@ -183,7 +186,8 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
 
   // Create a new PDF page.
   $pdf->addPage('P', 'A4');
-  // Get the page width for later calculations.
+  // Get the page height and width for later calculations.
+  $page_height = $pdf->getPageHeight();
   $page_width = $pdf->getPageWidth();
 
   // Get the configuration for elements in the PDF.
@@ -201,7 +205,7 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
       if ($logo_path && is_readable($logo_path)) {
         $logo_size = getimagesize($logo_path);
         $logo_height = $logo_size[1] / ($logo_size[0] / $logo_width);
-        $pdf->Image($logo_path, $page_width - $logo_width - $margin, $margin, $logo_width, $logo_height, NULL, $site_url);
+        $pdf->Image($logo_path, $page_width - $logo_width - $page_margin, $page_margin, $logo_width, $logo_height, NULL, $site_url);
       }
     }
   }
@@ -209,16 +213,16 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   // Add a 1D code just under the logo (optionally).
   $barcode_1d_width = 80;
   $barcode_1d_height = 15;
-  $barcode_1d_h_top = $logo_height ? $logo_height + 2 * $margin : $margin;
-  $barcode_1d_h_bottom = 0;
-  $barcode_format = is_numeric($ticket->barcode_token) ? 'EAN13' : 'C128';
+  $barcode_1d_hz_top = $logo_height ? $logo_height + $page_margin + $inner_padding : $page_margin;
+  $barcode_1d_hz_bottom = 0;
+  $barcode_format = 'C128'; // @todo make configurable
   if (!empty($elements['barcode_1d_horizontal'])) {
-    $barcode_1d_h_bottom = $barcode_1d_h_top + $barcode_1d_height;
+    $barcode_1d_hz_bottom = $barcode_1d_hz_top + $barcode_1d_height;
     $pdf->write1DBarcode(
       $ticket->barcode_token,
       $barcode_format,
-      $page_width - $barcode_1d_width - $margin,
-      $barcode_1d_h_top,
+      $page_width - $barcode_1d_width - $page_margin,
+      $barcode_1d_hz_top,
       $barcode_1d_width,
       $barcode_1d_height,
       NULL,
@@ -226,12 +230,15 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
     );
   }
 
-  // Add a rotated, i.e. vertical, version of the same 1D code (optionally).
+  // Add a vertical, version of the same 1D code (optionally).
   if (!empty($elements['barcode_1d_vertical'])) {
+    // Rotate the page by -90 degrees, around its top-left corner.
+    $pdf->setXY(0, 0);
     $pdf->startTransform();
     $pdf->Rotate(-90);
-    $x = $barcode_1d_h_bottom + $margin;
-    $y = -$page_width + $barcode_1d_height + $margin;
+    $pdf->setXY(0, 0);
+    $x = $barcode_1d_hz_bottom + $inner_padding;
+    $y = $page_margin - $page_width;
     $pdf->write1DBarcode(
       $ticket->barcode_token,
       $barcode_format,
@@ -243,6 +250,7 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
       array('stretch' => TRUE)
     );
     $pdf->stopTransform();
+    $pdf->SetRightMargin($barcode_1d_height + $page_margin + $inner_padding);
   }
 
   // Add a QR code in the top left of the page (optionally).
@@ -251,7 +259,7 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   if (!empty($elements['barcode_2d'])) {
     $barcode_2d_width = 40;
     $barcode_2d_height = 40;
-    $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', $margin, $margin, $barcode_2d_width, $barcode_2d_height);
+    $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', $page_margin, $page_margin, $barcode_2d_width, $barcode_2d_height);
   }
 
   // Generate HTML ticket information and write it to the page. Other modules
@@ -260,8 +268,8 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   $ticket_info = theme('commerce_event_ticket_pdf_info', array(
     'ticket' => $ticket,
   ));
-  $pdf->setX($margin);
-  $pdf->setY(($barcode_2d_height ? $barcode_2d_height + $margin : 0) + $margin);
+  $pdf->setX($page_margin);
+  $pdf->setY(($barcode_2d_height ? $barcode_2d_height + $inner_padding : 0) + $page_margin);
   $pdf->SetFont('Helvetica', NULL, 12);
   $pdf->writeHTML($ticket_info);
 
