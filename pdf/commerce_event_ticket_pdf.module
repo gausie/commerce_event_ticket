@@ -252,8 +252,8 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
     $pdf->stopTransform();
     // Add a region that stops text overwriting the vertical barcode.
     $pdf->addPageRegion(array(
-      'xt' => $page_width - $page_margin - $barcode_1d_height - $inner_padding,
-      'xb' => $page_width - $page_margin,
+      'xt' => $page_width - $page_margin,
+      'xb' => $page_width - $page_margin - $barcode_1d_height - $inner_padding,
       'yt' => $barcode_1d_hz_bottom,
       'yb' => $barcode_1d_hz_bottom + $inner_padding + $barcode_1d_width,
       'side' => 'R',
@@ -269,18 +269,24 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
     $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', $page_margin, $page_margin, $barcode_2d_width, $barcode_2d_height);
   }
 
+  // Set our position to be just after the barcodes.
+  $pdf->setX($page_margin);
+  $pdf->setY(($barcode_2d_height ? $barcode_2d_height + $inner_padding : 0) + $page_margin);
+
+  // After writing the optional 'elements', allow other modules to alter the PDF
+  // object.
+  drupal_alter('commerce_event_ticket_pdf_after_elements', $pdf, $ticket);
+
   // Generate HTML ticket information and write it to the page. Other modules
   // can change this information by overriding
   // theme_commerce_event_ticket_pdf_info().
   $ticket_info = theme('commerce_event_ticket_pdf_info', array(
     'ticket' => $ticket,
   ));
-  $pdf->setX($page_margin);
-  $pdf->setY(($barcode_2d_height ? $barcode_2d_height + $inner_padding : 0) + $page_margin);
   $pdf->SetFont('Helvetica', NULL, 12);
   $pdf->writeHTML($ticket_info);
 
-  // Allow other modules to alter the PDF object directly.
+  // After the PDF after writing everything else.
   drupal_alter('commerce_event_ticket_pdf', $pdf, $ticket);
 
   return $pdf;
