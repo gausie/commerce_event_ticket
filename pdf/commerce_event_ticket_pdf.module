@@ -250,7 +250,14 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
       array('stretch' => TRUE)
     );
     $pdf->stopTransform();
-    $pdf->SetRightMargin($barcode_1d_height + $page_margin + $inner_padding);
+    // Add a region that stops text overwriting the vertical barcode.
+    $pdf->addPageRegion(array(
+      'xt' => $page_width - $page_margin - $barcode_1d_height - $inner_padding,
+      'xb' => $page_width - $page_margin,
+      'yt' => $barcode_1d_hz_bottom,
+      'yb' => $barcode_1d_hz_bottom + $inner_padding + $barcode_1d_width,
+      'side' => 'R',
+    ));
   }
 
   // Add a QR code in the top left of the page (optionally).
