@@ -9,6 +9,9 @@
  */
 function cet_services_retrieve_ticket($barcode) {
   $ticket = commerce_event_ticket_load_by_barcode($barcode);
+  if (!$ticket) {
+    return FALSE;
+  }
   $order = commerce_order_load($ticket->order_id);
   $product = commerce_product_load($ticket->product_id);
   $owner = user_load($order->uid);
