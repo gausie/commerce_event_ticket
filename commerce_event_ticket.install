@@ -84,6 +84,8 @@ function commerce_event_ticket_schema() {
  */
 function commerce_event_ticket_uninstall() {
   variable_del('commerce_event_ticket_product_types');
+  variable_del('commerce_event_ticket_barcode_length');
+  variable_del('commerce_event_ticket_token_type');
   variable_del('commerce_event_ticket_valid_statuses');
   variable_del('commerce_event_ticket_statuses_create');
 }

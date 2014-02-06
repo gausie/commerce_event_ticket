@@ -577,6 +577,8 @@ function commerce_event_ticket_create_from_line_item(EntityDrupalWrapper $line_i
   }
 
   // Create the new tickets.
+  $length = variable_get('commerce_event_ticket_barcode_length', 10);
+  $alpha = variable_get('commerce_event_ticket_token_type', 'alphanumeric') == 'alphanumeric';
   $created = 0;
   for ($i = 1; $i <= $to_create; $i++) {
     $controller = entity_get_controller('commerce_event_ticket');
@@ -584,7 +586,7 @@ function commerce_event_ticket_create_from_line_item(EntityDrupalWrapper $line_i
       // The commerce_event_ticket bundle is always 'ticket' for now.
       'type' => 'ticket',
       // Generate a secure barcode token for this individual ticket.
-      'barcode_token' => commerce_event_ticket_generate_barcode_token(),
+      'barcode_token' => commerce_event_ticket_generate_barcode_token($length, $alpha),
       'product_id' => $product->product_id,
       'order_id' => $line_item->order_id,
       'line_item_id' => $line_item->line_item_id,
