@@ -266,6 +266,9 @@ function commerce_event_ticket_access($op, $entity, $account = NULL) {
   if (!$account) {
     $account = $GLOBALS['user'];
   }
+  if (user_access('administer commerce event ticket', $account)) {
+    return TRUE;
+  }
   if (user_access('view all commerce event tickets', $account)) {
     return TRUE;
   }
@@ -391,7 +394,7 @@ function commerce_event_ticket_entity_delete($entity, $type) {
  */
 function commerce_event_ticket_commerce_order_update($order) {
   // Create tickets for an order when it is updated.
-  commerce_event_ticket_create_from_order($order);
+  commerce_event_ticket_create_from_order($order, FALSE, TRUE);
 }
 
 /**
@@ -538,25 +541,25 @@ function _commerce_event_ticket_order_should_have_tickets($order) {
  *   default is FALSE, which means that this function will have no effect if
  *   tickets already exist for the line item.
  *
- * @return int
- *   The number of tickets created.
+ * @return array
+ *   An array of ticket entities.
  */
 function commerce_event_ticket_create_from_line_item(EntityDrupalWrapper $line_item_wrapper, $recreate = FALSE) {
   // Check that the line item is a product.
   if ($line_item_wrapper->type->value() != 'product') {
-    return 0;
+    return array();
   }
 
   // Check that the product is configured to have tickets.
   $product = $line_item_wrapper->commerce_product->value();
   if (!commerce_event_ticket_product_is_ticket($product)) {
-    return 0;
+    return array();
   }
 
   // Find out the number of tickets to create.
   $to_create = $line_item_wrapper->quantity->value();
   if ($to_create == 0) {
-    return 0;
+    return array();
   }
 
   $line_item = $line_item_wrapper->value();
@@ -572,14 +575,14 @@ function commerce_event_ticket_create_from_line_item(EntityDrupalWrapper $line_i
     $existing = commerce_event_ticket_count($line_item);
     $to_create -= $existing;
     if ($to_create == 0) {
-      return 0;
+      return array();
     }
   }
 
   // Create the new tickets.
   $length = variable_get('commerce_event_ticket_barcode_length', 10);
   $alpha = variable_get('commerce_event_ticket_token_type', 'alphanumeric') == 'alphanumeric';
-  $created = 0;
+  $tickets = array();
   for ($i = 1; $i <= $to_create; $i++) {
     $controller = entity_get_controller('commerce_event_ticket');
     $ticket = $controller->create(array(
@@ -592,10 +595,10 @@ function commerce_event_ticket_create_from_line_item(EntityDrupalWrapper $line_i
       'line_item_id' => $line_item->line_item_id,
     ));
     $controller->save($ticket, $transaction);
-    $created++;
+    $tickets[$ticket->ticket_id] = $ticket;
   }
 
-  return $created;
+  return $tickets;
 }
 
 /**
@@ -605,15 +608,28 @@ function commerce_event_ticket_create_from_line_item(EntityDrupalWrapper $line_i
  *   The Commerce order object.
  * @param bool $recreate
  *   Whether to recreate tickets (invalidating any old ones). Defaults to FALSE.
+ * @param bool $allow_email
+ *   Whether it is appropriate to email the tickets to the customer after
+ *   creating them. Defaults to FALSE. Note that the emailing is not done in
+ *   this module: the flag is merely passed on to other modules.
  */
-function commerce_event_ticket_create_from_order($order, $recreate = FALSE) {
+function commerce_event_ticket_create_from_order($order, $recreate = FALSE, $allow_email = FALSE) {
   if (!_commerce_event_ticket_order_should_have_tickets($order)) {
     return;
   }
-  $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
-  foreach ($order_wrapper->commerce_line_items as $line_item_wrapper) {
-    commerce_event_ticket_create_from_line_item($line_item_wrapper, $recreate);
+  if (!$recreate && count($ticket_ids = commerce_event_ticket_find_by_order($order))) {
+    $tickets = commerce_event_ticket_load_multiple($ticket_ids);
   }
+  else {
+    $tickets = array();
+    $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+    foreach ($order_wrapper->commerce_line_items as $line_item_wrapper) {
+      $tickets = array_merge($tickets, commerce_event_ticket_create_from_line_item($line_item_wrapper, $recreate));
+    }
+  }
+  // Allow other modules to act when all the tickets for this order have been
+  // created.
+  module_invoke_all('commerce_event_tickets_created', $tickets, $order, $recreate, $allow_email);
 }
 
 /**
@@ -650,4 +666,11 @@ function commerce_event_ticket_views_api() {
     'api' => 3,
     'path' => drupal_get_path('module', 'commerce_event_ticket') . '/includes',
   );
+}
+
+/**
+ * Access callback for configuring Rules related to tickets.
+ */
+function commerce_event_ticket_rules_config_access($type, $name) {
+  return user_access('administer commerce event ticket');
 }

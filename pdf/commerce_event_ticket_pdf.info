@@ -6,6 +6,7 @@ dependencies[] = commerce_event_ticket
 dependencies[] = tcpdf
 dependencies[] = file
 dependencies[] = file_entity
+dependencies[] = rules
 
 ; This isn't a Feature module, but it's convenient to use Features anyway to
 ; provide the field required for storing PDFs.

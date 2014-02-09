@@ -35,13 +35,16 @@ function _commerce_event_ticket_pdf_elements_options() {
 }
 
 /**
- * Implements hook_entity_insert().
+ * Implements hook_commerce_event_tickets_created().
  */
-function commerce_event_ticket_pdf_entity_insert($entity, $type) {
-  // Generate and save a PDF file when the ticket entity is first created.
-  if ($type == 'commerce_event_ticket') {
-    commerce_event_ticket_pdf_create($entity);
+function commerce_event_ticket_pdf_commerce_event_tickets_created($tickets, $order, $recreate, $allow_email) {
+  // Generate and save PDF files when tickets are first created.
+  foreach ($tickets as $ticket) {
+    commerce_event_ticket_pdf_create($ticket, $recreate);
   }
+  // Invoke the Rules event "After PDF tickets have been created for an order".
+  // @see commerce_event_ticket_pdf_rules_event_info()
+  rules_invoke_all('commerce_event_ticket_pdf_created', $tickets, $order, $allow_email);
 }
 
 /**
@@ -72,9 +75,6 @@ function commerce_event_ticket_pdf_commerce_order_update($order) {
  *   The ticket object.
  * @param bool $recreate
  *   Whether to recreate (replace) the file if it already exists.
- *
- * @return stdClass|FALSE
- *   A Drupal managed file object, already saved, or FALSE on failure.
  */
 function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $recreate = FALSE) {
   // Use an Entity API metadata wrapper for simpler access to the file field.
@@ -85,27 +85,15 @@ function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $re
   }
 
   // Generate a new PDF file (using the TCPDF library).
-  $pdf = commerce_event_ticket_pdf_generate($ticket);
-  if (!$pdf) {
-    watchdog('commerce_event_ticket', 'Could not generate PDF file for ticket @ticket', array('@ticket' => $ticket->ticket_id), WATCHDOG_ERROR);
-  }
+  $pdf = commerce_event_ticket_pdf_generate(array($ticket));
 
   // Load the order.
   $order = commerce_order_load($ticket->order_id);
 
-  // Create the directory for saving this PDF, if necessary. Use a directory
-  // structure that includes the date of the order - otherwise we might be
-  // creating 1000s of files in the same directory which may introduce
-  // performance issues.
-  $save_dir = 'private://commerce_event_ticket_pdf/' . date('Y/m/d', $order->created);
-  if (!file_exists($save_dir)) {
-    mkdir($save_dir, 0755, TRUE);
-    chmod(drupal_realpath($save_dir), 0755);
-  }
-
   // Create the filename for the PDF. The MD5 hash is a convenience; this
   // filename does not need to be secure.
   $hash = md5($ticket->order_id . '_' . $ticket->product_id . '_' . $ticket->ticket_id);
+  $save_dir = commerce_event_ticket_pdf_get_save_dir($order, TRUE);
   $destination = $save_dir . '/ticket_' . $hash . '.pdf';
 
   // Get the PDF data as a string.
@@ -130,24 +118,19 @@ function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $re
     ));
     $ticket_wrapper->save();
   }
-  return $file;
 }
 
 /**
  * Generate a PDF for a ticket.
  *
- * @param CommerceEventTicketEntity $ticket
- *   The ticket object.
+ * @param array $tickets
+ *   An array of ticket objects (CommerceEventTicketEntity).
  *
- * @return TCPDF|FALSE
- *   A TCPDF object, or FALSE on failure.
+ * @return TCPDF
+ *   A TCPDF object representing the PDF (not yet saved as a file).
  */
-function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
+function commerce_event_ticket_pdf_generate(array $tickets) {
   $pdf = _commerce_event_ticket_pdf_get_tcpdf_instance();
-  if (!$pdf) {
-    watchdog('commerce_event_ticket', 'Failed to get TCPDF instance', NULL, WATCHDOG_ERROR);
-    return FALSE;
-  }
 
   // Turn off the TCPDF header and footer (a black line).
   $pdf->setPrintHeader(FALSE);
@@ -164,118 +147,125 @@ function commerce_event_ticket_pdf_generate(CommerceEventTicketEntity $ticket) {
   // Set PDF metadata.
   $pdf->setAuthor(variable_get('site_name'));
   $pdf->setCreator($site_url);
-  $pdf->SetTitle(t('Ticket: !id', array('!id' => $ticket->ticket_id)));
-  $pdf->SetSubject(t('Event ticket'));
-
-  // Create a new PDF page.
-  $pdf->addPage('P', 'A4');
-  // Get the page height and width for later calculations.
-  $page_height = $pdf->getPageHeight();
-  $page_width = $pdf->getPageWidth();
-
-  // Get the configuration for elements in the PDF.
-  $options = _commerce_event_ticket_pdf_elements_options();
-  $defaults = drupal_map_assoc(array_keys($options));
-  $elements = variable_get('commerce_event_ticket_pdf_elements', $defaults);
-
-  // Add a 1D code at the top right of the page (optionally).
-  $barcode_1d_width = 80;
-  $barcode_1d_height = 15;
-  $barcode_1d_hz_top = $page_margin;
-  $barcode_1d_hz_bottom = 0;
-  $barcode_format = 'C128'; // @todo make configurable
-  if (!empty($elements['barcode_1d_horizontal'])) {
-    $barcode_1d_hz_bottom = $barcode_1d_hz_top + $barcode_1d_height;
-    $pdf->write1DBarcode(
-      $ticket->barcode_token,
-      $barcode_format,
-      $page_width - $barcode_1d_width - $page_margin,
-      $barcode_1d_hz_top,
-      $barcode_1d_width,
-      $barcode_1d_height,
-      NULL,
-      array('stretch' => TRUE)
-    );
+  $ticket_ids = array();
+  foreach ($tickets as $ticket) {
+    $ticket_ids[] = $ticket->ticket_id;
   }
+  $pdf->setTitle(
+    format_plural(count($tickets), 'Ticket: @ids', 'Tickets: @ids', array('@ids' => implode(', ', $ticket_ids)))
+  );
 
-  // Add the site logo just under the barcode (optionally).
-  $logo_width = 30;
-  $logo_height = 0;
-  $logo_bottom = 0;
-  if (!empty($elements['logo'])) {
-    $logo_url = theme_get_setting('logo');
-    if ($logo_url) {
-      $logo_path = drupal_realpath(ltrim(parse_url($logo_url, PHP_URL_PATH), '/'));
-      $logo_x = $page_width - $logo_width - $page_margin;
-      $logo_y = $barcode_1d_hz_bottom + $inner_padding;
-      if ($logo_path && is_readable($logo_path)) {
-        $logo_size = getimagesize($logo_path);
-        $logo_height = $logo_size[1] / ($logo_size[0] / $logo_width);
-        $logo_bottom = $logo_y + $logo_height;
-        $pdf->Image($logo_path, $logo_x, $logo_y, $logo_width, $logo_height, NULL, $site_url);
+  foreach ($tickets as $ticket) {
+    // Create a new PDF page.
+    $pdf->addPage('P', 'A4');
+    // Get the page height and width for later calculations.
+    $page_height = $pdf->getPageHeight();
+    $page_width = $pdf->getPageWidth();
+
+    // Get the configuration for elements in the PDF.
+    $options = _commerce_event_ticket_pdf_elements_options();
+    $defaults = drupal_map_assoc(array_keys($options));
+    $elements = variable_get('commerce_event_ticket_pdf_elements', $defaults);
+
+    // Add a 1D code at the top right of the page (optionally).
+    $barcode_1d_width = 80;
+    $barcode_1d_height = 15;
+    $barcode_1d_hz_top = $page_margin;
+    $barcode_1d_hz_bottom = 0;
+    $barcode_format = 'C128'; // @todo make configurable
+    if (!empty($elements['barcode_1d_horizontal'])) {
+      $barcode_1d_hz_bottom = $barcode_1d_hz_top + $barcode_1d_height;
+      $pdf->write1DBarcode(
+        $ticket->barcode_token,
+        $barcode_format,
+        $page_width - $barcode_1d_width - $page_margin,
+        $barcode_1d_hz_top,
+        $barcode_1d_width,
+        $barcode_1d_height,
+        NULL,
+        array('stretch' => TRUE)
+      );
+    }
+
+    // Add the site logo just under the barcode (optionally).
+    $logo_width = 30;
+    $logo_height = 0;
+    $logo_bottom = 0;
+    if (!empty($elements['logo'])) {
+      $logo_url = theme_get_setting('logo');
+      if ($logo_url) {
+        $logo_path = drupal_realpath(ltrim(parse_url($logo_url, PHP_URL_PATH), '/'));
+        $logo_x = $page_width - $logo_width - $page_margin;
+        $logo_y = $barcode_1d_hz_bottom + $inner_padding;
+        if ($logo_path && is_readable($logo_path)) {
+          $logo_size = getimagesize($logo_path);
+          $logo_height = $logo_size[1] / ($logo_size[0] / $logo_width);
+          $logo_bottom = $logo_y + $logo_height;
+          $pdf->Image($logo_path, $logo_x, $logo_y, $logo_width, $logo_height, NULL, $site_url);
+        }
       }
     }
-  }
 
-  // Add a vertical, version of the same 1D code (optionally), half-way down
-  // the left-hand side of the page.
-  if (!empty($elements['barcode_1d_vertical'])) {
-    // Rotate the page by -90 degrees, around its top-left corner.
-    $pdf->setXY(0, 0);
-    $pdf->startTransform();
-    $pdf->Rotate(-90);
-    $pdf->setXY(0, 0);
-    $barcode_1d_vt_x = $page_height / 2 - $barcode_1d_width / 2;
-    $barcode_1d_vt_y = $page_margin - $page_width;
-    $pdf->write1DBarcode(
-      $ticket->barcode_token,
-      $barcode_format,
-      $barcode_1d_vt_x,
-      $barcode_1d_vt_y,
-      $barcode_1d_width,
-      $barcode_1d_height,
-      NULL,
-      array('stretch' => TRUE)
-    );
-    $pdf->stopTransform();
-    // Add a region that stops text overwriting the vertical barcode.
-    $pdf->addPageRegion(array(
-      'xt' => $page_width - $page_margin - $barcode_1d_height - $inner_padding,
-      'xb' => $page_width - $page_margin,
-      'yt' => $barcode_1d_vt_x,
-      'yb' => $barcode_1d_vt_x + $barcode_1d_width,
-      'side' => 'R',
+    // Add a vertical, version of the same 1D code (optionally), half-way down
+    // the left-hand side of the page.
+    if (!empty($elements['barcode_1d_vertical'])) {
+      // Rotate the page by -90 degrees, around its top-left corner.
+      $pdf->setXY(0, 0);
+      $pdf->startTransform();
+      $pdf->Rotate(-90);
+      $pdf->setXY(0, 0);
+      $barcode_1d_vt_x = $page_height / 2 - $barcode_1d_width / 2;
+      $barcode_1d_vt_y = $page_margin - $page_width;
+      $pdf->write1DBarcode(
+        $ticket->barcode_token,
+        $barcode_format,
+        $barcode_1d_vt_x,
+        $barcode_1d_vt_y,
+        $barcode_1d_width,
+        $barcode_1d_height,
+        NULL,
+        array('stretch' => TRUE)
+      );
+      $pdf->stopTransform();
+      // Add a region that stops text overwriting the vertical barcode.
+      $pdf->addPageRegion(array(
+        'xt' => $page_width - $page_margin - $barcode_1d_height - $inner_padding,
+        'xb' => $page_width - $page_margin,
+        'yt' => $barcode_1d_vt_x,
+        'yb' => $barcode_1d_vt_x + $barcode_1d_width,
+        'side' => 'R',
+      ));
+    }
+
+    // Add a QR code in the top left of the page (optionally).
+    $barcode_2d_width = 0;
+    $barcode_2d_height = 0;
+    if (!empty($elements['barcode_2d'])) {
+      $barcode_2d_width = 40;
+      $barcode_2d_height = 40;
+      $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', $page_margin, $page_margin, $barcode_2d_width, $barcode_2d_height);
+    }
+
+    // Set our position to be just after the barcodes.
+    $pdf->setX($page_margin);
+    $pdf->setY(($barcode_2d_height ? $barcode_2d_height + $inner_padding : 0) + $page_margin);
+
+    // After writing the optional 'elements', allow other modules to alter the PDF
+    // object.
+    drupal_alter('commerce_event_ticket_pdf_after_elements', $pdf, $ticket);
+
+    // Generate HTML ticket information and write it to the page. Other modules
+    // can change this information by overriding
+    // theme_commerce_event_ticket_pdf_info().
+    $ticket_info = theme('commerce_event_ticket_pdf_info', array(
+      'ticket' => $ticket,
     ));
+    $pdf->SetFont('Helvetica', NULL, 12);
+    $pdf->writeHTML($ticket_info);
+
+    // After the PDF after writing everything else.
+    drupal_alter('commerce_event_ticket_pdf', $pdf, $ticket);
   }
-
-  // Add a QR code in the top left of the page (optionally).
-  $barcode_2d_width = 0;
-  $barcode_2d_height = 0;
-  if (!empty($elements['barcode_2d'])) {
-    $barcode_2d_width = 40;
-    $barcode_2d_height = 40;
-    $pdf->write2DBarcode($ticket->barcode_token, 'QRCODE', $page_margin, $page_margin, $barcode_2d_width, $barcode_2d_height);
-  }
-
-  // Set our position to be just after the barcodes.
-  $pdf->setX($page_margin);
-  $pdf->setY(($barcode_2d_height ? $barcode_2d_height + $inner_padding : 0) + $page_margin);
-
-  // After writing the optional 'elements', allow other modules to alter the PDF
-  // object.
-  drupal_alter('commerce_event_ticket_pdf_after_elements', $pdf, $ticket);
-
-  // Generate HTML ticket information and write it to the page. Other modules
-  // can change this information by overriding
-  // theme_commerce_event_ticket_pdf_info().
-  $ticket_info = theme('commerce_event_ticket_pdf_info', array(
-    'ticket' => $ticket,
-  ));
-  $pdf->SetFont('Helvetica', NULL, 12);
-  $pdf->writeHTML($ticket_info);
-
-  // After the PDF after writing everything else.
-  drupal_alter('commerce_event_ticket_pdf', $pdf, $ticket);
 
   return $pdf;
 }
@@ -347,6 +337,21 @@ function theme_commerce_event_ticket_pdf_info($variables) {
 }
 
 /**
+ * Get the directory for saving PDFs.
+ */
+function commerce_event_ticket_pdf_get_save_dir($order, $create = FALSE) {
+  // Use a directory structure that includes the date of the order - otherwise
+  // we might be creating 1000s of files in the same directory which may
+  // introduce performance issues.
+  $save_dir = 'private://commerce_event_ticket_pdf/' . date('Y/m/d', $order->created);
+  if ($create && !file_exists($save_dir)) {
+    mkdir($save_dir, 0755, TRUE);
+    chmod(drupal_realpath($save_dir), 0755);
+  }
+  return $save_dir;
+}
+
+/**
  * Get a TCPDF instance.
  *
  * @return TCPDF
@@ -359,4 +364,81 @@ function _commerce_event_ticket_pdf_get_tcpdf_instance() {
     'module' => 'commerce_event_ticket_pdf',
   );
   return tcpdf_get_instance(array(), array(), $config);
+}
+
+/**
+ * Implements hook_entity_delete()
+ */
+function commerce_event_ticket_pdf_entity_delete($entity, $type) {
+  // Delete aggregate files when tickets are deleted.
+  if ($type == 'commerce_event_ticket') {
+    $order = commerce_order_load($entity->order_id);
+    $file = commerce_event_ticket_pdf_load_aggregate_file($order);
+    if ($file) {
+      file_usage_delete($file, 'commerce_event_ticket_pdf');
+      file_delete($file);
+    }
+  }
+}
+
+/**
+ * Get the filename of a PDF ticket aggregate.
+ */
+function commerce_event_ticket_pdf_get_aggregate_filename($order, $create_dir = FALSE) {
+  $save_dir = commerce_event_ticket_pdf_get_save_dir($order, $create_dir);
+  $output_filename = $save_dir . '/' . 'aggregate-' . $order->order_id . '.pdf';
+  return $output_filename;
+}
+
+/**
+ * Load the PDF ticket aggregate for an order.
+ */
+function commerce_event_ticket_pdf_load_aggregate_file($order) {
+  $aggregate = commerce_event_ticket_pdf_get_aggregate_filename($order);
+  if (file_exists($aggregate)) {
+    $files = file_load_multiple(array(), array('uri' => $aggregate));
+    return $files ? reset($files) : FALSE;
+  }
+  return FALSE;
+}
+
+/**
+ * Aggregate ticket PDFs for an order into a single file.
+ *
+ * This can be invoked as a Rules action.
+ *
+ * @param object $order
+ *   The Commerce order object.
+ * @param array $tickets
+ *   An array of ticket (CommerceEventTicketEntity) objects.
+ * @param bool $recreate
+ *   Whether to recreate the aggregate if it already exists (default: FALSE).
+ */
+function commerce_event_ticket_pdf_aggregate($order, $tickets, $recreate = FALSE) {
+  $output_filename = commerce_event_ticket_pdf_get_aggregate_filename($order, TRUE);
+  if (file_exists($output_filename)) {
+    $file = commerce_event_ticket_pdf_load_aggregate_file($order);
+    if ($recreate) {
+      file_usage_delete($file, 'commerce_event_ticket_pdf');
+      file_delete($file);
+    }
+    else {
+      return $file;
+    }
+  }
+
+  $pdf = commerce_event_ticket_pdf_generate($tickets);
+
+  // Get the PDF data as a string.
+  $pdf_data = $pdf->Output('', 'S');
+
+  // Save the PDF to a file.
+  $file = file_save_data($pdf_data, $output_filename, FILE_EXISTS_REPLACE);
+
+  // Save memory if multiple PDFs are being generated in this process. This
+  // may or may not have any real effect, but it does no harm.
+  unset($pdf, $pdf_data);
+
+  file_usage_add($file, 'commerce_event_ticket_pdf', 'commerce_order', $order->order_id);
+  return $file;
 }
