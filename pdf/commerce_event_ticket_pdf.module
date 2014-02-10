@@ -360,7 +360,7 @@ function commerce_event_ticket_pdf_get_save_dir($order, $create = FALSE) {
   // Use a directory structure that includes the date of the order - otherwise
   // we might be creating 1000s of files in the same directory which may
   // introduce performance issues.
-  $save_dir = 'private://commerce_event_ticket_pdf/' . date('Y/m/d', $order->created);
+  $save_dir = 'private://commerce_event_ticket/pdf/' . date('Y/m', $order->created);
   if ($create && !file_exists($save_dir)) {
     mkdir($save_dir, 0775, TRUE);
     chmod(drupal_realpath($save_dir), 0775);
@@ -486,4 +486,40 @@ function commerce_event_ticket_pdf_create_by_order($order, $tickets = array(), $
 
   file_usage_add($file, 'commerce_event_ticket_pdf', 'commerce_order', $order->order_id);
   return $file;
+}
+
+/**
+ * Implements hook_file_download_access().
+ *
+ * If the user can view the ticket, they should be allowed to view any attached
+ * files.
+ */
+function commerce_event_ticket_pdf_file_download_access($file_item, $entity_type, $entity) {
+  if ($entity_type == 'commerce_event_ticket') {
+    return commerce_event_ticket_access('view', $entity);
+  }
+}
+
+/**
+ * Implements hook_file_entity_access().
+ *
+ * This is the equivalent of commerce_event_ticket_file_download_access() for
+ * files that are stored as File Entity entities.
+ */
+function commerce_event_ticket_pdf_file_entity_access($op, $file, $account) {
+  if (($op == 'view' || $op == 'download') && is_object($file)) {
+    $references = file_get_file_references($file);
+    foreach ($references as $result) {
+      if (isset($result['commerce_event_ticket'])) {
+        foreach (array_keys($result['commerce_event_ticket']) as $ticket_id) {
+          $ticket = commerce_event_ticket_load($ticket_id);
+          if ($ticket && commerce_event_ticket_access('view', $ticket, $account)) {
+            return FILE_ENTITY_ACCESS_ALLOW;
+          }
+        }
+      }
+      return FILE_ENTITY_ACCESS_IGNORE;
+    }
+  }
+  return FILE_ENTITY_ACCESS_IGNORE;
 }
