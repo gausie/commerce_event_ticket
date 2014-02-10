@@ -19,6 +19,24 @@ function commerce_event_ticket_pdf_menu() {
     'type' => MENU_LOCAL_TASK,
     'weight' => 1,
   );
+  // Download a single ticket.
+  $items['commerce-event-ticket-pdf/download/%commerce_event_ticket'] = array(
+    'title' => 'Download ticket',
+    'page callback' => 'commerce_event_ticket_pdf_download',
+    'page arguments' => array(2),
+    'access callback' => 'commerce_event_ticket_pdf_download_ticket_access',
+    'access arguments' => array(2),
+    'type' => MENU_CALLBACK,
+  );
+  // Download all the tickets for an order.
+  $items['commerce-event-ticket-pdf/download/order/%commerce_order'] = array(
+    'title' => 'Download tickets',
+    'page callback' => 'commerce_event_ticket_pdf_download_per_order',
+    'page arguments' => array(3),
+    'access callback' => 'commerce_event_ticket_pdf_download_per_order_access',
+    'access arguments' => array(3),
+    'type' => MENU_CALLBACK,
+  );
   return $items;
 }
 
@@ -76,7 +94,8 @@ function commerce_event_ticket_pdf_commerce_order_update($order) {
  * @param object $entity
  *   The entity object to create tickets for - a ticket, order, or line item.
  * @param string $entity_type
- *   The type of entity to create tickets for.
+ *   The type of entity to create tickets for: this must describe the type of
+ *   $entity. Defaults to 'commerce_event_ticket'.
  * @param array $tickets
  *   The ticket objects, keyed by their ticket IDs. If this argument is omitted,
  *   the tickets will be loaded automatically.
@@ -86,7 +105,7 @@ function commerce_event_ticket_pdf_commerce_order_update($order) {
  * @return object|FALSE
  *   A saved file object representing the PDF, or FALSE on failure.
  */
-function commerce_event_ticket_pdf_create($entity, $entity_type, array $tickets = array(), $recreate = FALSE) {
+function commerce_event_ticket_pdf_create($entity, $entity_type = 'commerce_event_ticket', array $tickets = array(), $recreate = FALSE) {
   $entity_ids = entity_extract_ids($entity_type, $entity);
   $entity_id = $entity_ids[0];
   // Check if the file already exists.
@@ -100,8 +119,8 @@ function commerce_event_ticket_pdf_create($entity, $entity_type, array $tickets 
     if ($recreate) {
       file_delete_multiple(array($fid));
     }
-    else {
-      return file_load($fid);
+    elseif ($file = file_load($fid)) {
+      return $file;
     }
   }
 
@@ -187,6 +206,8 @@ function commerce_event_ticket_pdf_create($entity, $entity_type, array $tickets 
     ));
   }
   $query->execute();
+
+  return $file;
 }
 
 /**
@@ -499,4 +520,75 @@ function commerce_event_ticket_pdf_file_entity_access($op, $file, $account) {
     }
   }
   return FILE_ENTITY_ACCESS_IGNORE;
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function commerce_event_ticket_pdf_views_api() {
+  return array(
+    'api' => 3,
+    'path' => drupal_get_path('module', 'commerce_event_ticket_pdf') . '/includes',
+  );
+}
+
+/**
+ * Access callback to download a PDF file for a single ticket.
+ *
+ * @param CommerceEventTicketEntity $ticket
+ *   The event ticket object.
+ */
+function commerce_event_ticket_pdf_download_ticket_access($ticket) {
+  if (empty($_GET['token']) || !drupal_valid_token($_GET['token'], $ticket->ticket_id)) {
+    return FALSE;
+  }
+  return commerce_event_ticket_access('view', $ticket);
+}
+
+/**
+ * Page callback for downloading a PDF file for a single ticket.
+ *
+ * @param CommerceEventTicketEntity $ticket
+ *   The event ticket object.
+ */
+function commerce_event_ticket_pdf_download($ticket) {
+  $file = commerce_event_ticket_pdf_create($ticket, 'commerce_event_ticket');
+  if (!$file) {
+    throw new Exception('Could not create ticket file.');
+  }
+  $uri = file_entity_download_uri($file);
+  drupal_goto($uri['path'], $uri['options']);
+}
+
+/**
+ * Access callback to download a PDF file for all the tickets in an order.
+ *
+ * @param object $order
+ *   The commerce order object.
+ */
+function commerce_event_ticket_pdf_download_per_order_access($order) {
+  if (!_commerce_event_ticket_order_should_have_tickets($order)) {
+    return FALSE;
+  }
+  if (empty($_GET['token']) || !drupal_valid_token($_GET['token'], $order->order_id)) {
+    return FALSE;
+  }
+  return commerce_order_access('view', $order);
+}
+
+/**
+ * Page callback for a PDF file containing all the tickets in an order.
+ *
+ * @param object $order
+ *   The commerce order object.
+ */
+function commerce_event_ticket_pdf_download_per_order($order) {
+  $file = commerce_event_ticket_pdf_create($order, 'commerce_order');
+  if (!$file) {
+    // If this error happens, it's probably to do with file permissions.
+    drupal_set_message(t('The ticket file could not be generated.'), 'error');
+    return MENU_NOT_FOUND;
+  }
+  $uri = file_entity_download_uri($file);
+  drupal_goto($uri['path'], $uri['options']);
 }

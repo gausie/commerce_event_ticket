@@ -6,3 +6,6 @@ dependencies[] = commerce_event_ticket
 dependencies[] = tcpdf
 dependencies[] = file_entity
 dependencies[] = rules
+
+files[] = includes/views/handlers/commerce_event_ticket_pdf_views_handler_field_link.inc
+files[] = includes/views/handlers/commerce_event_ticket_pdf_views_handler_field_link_order.inc
