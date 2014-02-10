@@ -57,7 +57,8 @@ function _commerce_event_ticket_pdf_elements_options() {
  */
 function commerce_event_ticket_pdf_commerce_event_tickets_created($tickets, $order, $recreate, $allow_email) {
   $file = commerce_event_ticket_pdf_create($order, 'commerce_order', $tickets, $recreate);
-  // Invoke the Rules event "After a PDF ticket file has been created for an order".
+  // Invoke the Rules event "After a PDF ticket file has been created for an
+  // order".
   // @see commerce_event_ticket_pdf_rules_event_info()
   if ($file) {
     rules_invoke_all('commerce_event_ticket_pdf_created', $file, $order, $allow_email);
@@ -203,15 +204,22 @@ function commerce_event_ticket_pdf_create($entity, $entity_type = 'commerce_even
   // Record that this file is associated with these tickets, and this entity.
   file_usage_add($file, 'commerce_event_ticket_pdf', $entity_type, $entity_id);
   $query = db_insert('commerce_event_ticket_pdf')
-    ->fields(array('fid', 'ticket_id', 'entity_type', 'entity_id', 'created', 'changed'));
+    ->fields(array(
+      'fid',
+      'ticket_id',
+      'entity_type',
+      'entity_id',
+      'created',
+      'changed',
+    ));
   foreach ($tickets as $ticket) {
     $query->values(array(
       'fid' => $file->fid,
       'ticket_id' => $ticket->ticket_id,
-      'created' => REQUEST_TIME,
-      'changed' => REQUEST_TIME,
       'entity_type' => $entity_type,
       'entity_id' => $entity_id,
+      'created' => REQUEST_TIME,
+      'changed' => REQUEST_TIME,
     ));
   }
   $query->execute();
@@ -240,7 +248,7 @@ function commerce_event_ticket_pdf_generate(array $tickets) {
   $pdf->setPrintHeader(FALSE);
   $pdf->setPrintFooter(FALSE);
 
-  $page_margin = 10; // @todo make configurable
+  $page_margin = 10;
   $inner_padding = 10;
   $pdf->SetAutoPageBreak(TRUE, $page_margin);
   $pdf->SetMargins($page_margin, $page_margin);
@@ -272,7 +280,7 @@ function commerce_event_ticket_pdf_generate(array $tickets) {
     $barcode_1d_height = 15;
     $barcode_1d_hz_top = $page_margin;
     $barcode_1d_hz_bottom = 0;
-    $barcode_format = 'C128'; // @todo make configurable
+    $barcode_format = 'C128';
     if (!empty($elements['barcode_1d_horizontal'])) {
       $barcode_1d_hz_bottom = $barcode_1d_hz_top + $barcode_1d_height;
       $pdf->write1DBarcode(
@@ -467,7 +475,7 @@ function _commerce_event_ticket_pdf_get_tcpdf_instance() {
 }
 
 /**
- * Implements hook_entity_delete()
+ * Implements hook_entity_delete().
  */
 function commerce_event_ticket_pdf_entity_delete($entity, $type) {
   // Delete PDF files when tickets are deleted.
