@@ -86,7 +86,7 @@ function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $re
   $fid = db_select('commerce_event_ticket_pdf', 'p')
     ->fields('p', array('fid'))
     ->condition('ticket_id', $ticket->ticket_id)
-    ->condition('scope', 'ticket')
+    ->condition('entity_type', 'commerce_event_ticket')
     ->execute()
     ->fetchField();
   if ($fid) {
@@ -133,7 +133,8 @@ function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $re
     ->fields(array(
       'fid' => $file->fid,
       'ticket_id' => $ticket->ticket_id,
-      'scope' => 'ticket',
+      'entity_type' => 'commerce_event_ticket',
+      'entity_id' => $ticket->ticket_id,
       'created' => REQUEST_TIME,
       'changed' => REQUEST_TIME,
     ))
@@ -437,8 +438,8 @@ function commerce_event_ticket_pdf_create_by_order($order, $tickets = array(), $
   // Check if the file already exists.
   $fid = db_select('commerce_event_ticket_pdf', 'p')
     ->fields('p', array('fid'))
-    ->condition('ticket_id', array_keys($tickets), 'IN')
-    ->condition('scope', 'order')
+    ->condition('entity_type', 'commerce_order')
+    ->condition('entity_id', $order->order_id)
     ->range(0, 1)
     ->execute()
     ->fetchField();
@@ -472,14 +473,15 @@ function commerce_event_ticket_pdf_create_by_order($order, $tickets = array(), $
   // Record that this file is associated with these tickets, so it can be
   // deleted if any of the tickets are deleted.
   $query = db_insert('commerce_event_ticket_pdf')
-    ->fields(array('fid', 'ticket_id', 'created', 'changed', 'scope'));
+    ->fields(array('fid', 'ticket_id', 'entity_type', 'entity_id', 'created', 'changed'));
   foreach ($tickets as $ticket) {
     $query->values(array(
       'fid' => $file->fid,
       'ticket_id' => $ticket->ticket_id,
       'created' => REQUEST_TIME,
       'changed' => REQUEST_TIME,
-      'scope' => 'order',
+      'entity_type' => 'commerce_order',
+      'entity_id' => $order->order_id,
     ));
   }
   $query->execute();

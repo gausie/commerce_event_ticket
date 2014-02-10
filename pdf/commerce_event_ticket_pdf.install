@@ -25,12 +25,17 @@ function commerce_event_ticket_pdf_schema() {
         'unsigned' => TRUE,
         'not null' => TRUE,
       ),
-      'scope' => array(
-        'description' => "How many tickets the file includes - one of 'ticket', 'line_item', or 'order'.",
+      'entity_type' => array(
+        'description' => "The entity type the file relates to: one of 'commerce_event_ticket', 'commerce_order', or 'commerce_line_item'.",
         'type' => 'varchar',
-        'length' => 10,
+        'length' => 30,
         'not null' => TRUE,
-        'default' => 'ticket',
+      ),
+      'entity_id' => array(
+        'description' => "The entity ID the file relates to.",
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
       ),
       'created' => array(
         'description' => 'The UNIX timestamp when this record was created.',
@@ -45,7 +50,7 @@ function commerce_event_ticket_pdf_schema() {
         'not null' => TRUE,
       ),
     ),
-    'primary key' => array('ticket_id', 'fid', 'scope'),
+    'primary key' => array('ticket_id', 'fid', 'entity_type', 'entity_id'),
   );
 
   return $schema;
@@ -56,20 +61,4 @@ function commerce_event_ticket_pdf_schema() {
  */
 function commerce_event_ticket_pdf_uninstall() {
   variable_del('commerce_event_ticket_pdf_elements');
-}
-
-/**
- * Create the 'scope' column.
- */
-function commerce_event_ticket_pdf_update_7002() {
-  db_add_field('commerce_event_ticket_pdf', 'scope', array(
-    'description' => "One of 'ticket', 'line_item', or 'order'.",
-    'type' => 'varchar',
-    'length' => 10,
-    'not null' => TRUE,
-    'default' => 'ticket',
-  ));
-  db_drop_index('commerce_event_ticket_pdf', 'ticket_id');
-  db_drop_index('commerce_event_ticket_pdf', 'fid');
-  db_add_primary_key('commerce_event_ticket_pdf', array('ticket_id', 'fid', 'scope'));
 }
