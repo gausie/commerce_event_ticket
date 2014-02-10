@@ -23,7 +23,7 @@ function commerce_event_ticket_pdf_menu() {
   $items['commerce-event-ticket-pdf/download/%commerce_event_ticket'] = array(
     'title' => 'Download ticket',
     'page callback' => 'commerce_event_ticket_pdf_download',
-    'page arguments' => array(2),
+    'page arguments' => array(2, 'commerce_event_ticket'),
     'access callback' => 'commerce_event_ticket_pdf_download_ticket_access',
     'access arguments' => array(2),
     'type' => MENU_CALLBACK,
@@ -31,8 +31,8 @@ function commerce_event_ticket_pdf_menu() {
   // Download all the tickets for an order.
   $items['commerce-event-ticket-pdf/download/order/%commerce_order'] = array(
     'title' => 'Download tickets',
-    'page callback' => 'commerce_event_ticket_pdf_download_per_order',
-    'page arguments' => array(3),
+    'page callback' => 'commerce_event_ticket_pdf_download',
+    'page arguments' => array(3, 'commerce_order'),
     'access callback' => 'commerce_event_ticket_pdf_download_per_order_access',
     'access arguments' => array(3),
     'type' => MENU_CALLBACK,
@@ -358,8 +358,8 @@ function commerce_event_ticket_pdf_generate(array $tickets) {
     $pdf->setX($page_margin);
     $pdf->setY(($barcode_2d_height ? $barcode_2d_height + $inner_padding : 0) + $page_margin);
 
-    // After writing the optional 'elements', allow other modules to alter the PDF
-    // object.
+    // After writing the optional 'elements', allow other modules to alter the
+    // PDF object.
     drupal_alter('commerce_event_ticket_pdf_after_elements', $pdf, $ticket);
 
     // Generate HTML ticket information and write it to the page. Other modules
@@ -563,21 +563,6 @@ function commerce_event_ticket_pdf_download_ticket_access($ticket) {
 }
 
 /**
- * Page callback for downloading a PDF file for a single ticket.
- *
- * @param CommerceEventTicketEntity $ticket
- *   The event ticket object.
- */
-function commerce_event_ticket_pdf_download($ticket) {
-  $file = commerce_event_ticket_pdf_create($ticket, 'commerce_event_ticket');
-  if (!$file) {
-    throw new Exception('Could not create ticket file.');
-  }
-  $uri = file_entity_download_uri($file);
-  drupal_goto($uri['path'], $uri['options']);
-}
-
-/**
  * Access callback to download a PDF file for all the tickets in an order.
  *
  * @param object $order
@@ -590,17 +575,16 @@ function commerce_event_ticket_pdf_download_per_order_access($order) {
   if (empty($_GET['token']) || !drupal_valid_token($_GET['token'], $order->order_id)) {
     return FALSE;
   }
-  return commerce_order_access('view', $order);
+  return ($order->uid == $GLOBALS['user']->uid && commerce_order_access('view', $order) && user_access('view own commerce event tickets'))
+    || user_access('view all commerce event tickets')
+    || user_access('administer commerce event ticket');
 }
 
 /**
- * Page callback for a PDF file containing all the tickets in an order.
- *
- * @param object $order
- *   The commerce order object.
+ * Page callback for downloading a ticket PDF file.
  */
-function commerce_event_ticket_pdf_download_per_order($order) {
-  $file = commerce_event_ticket_pdf_create($order, 'commerce_order');
+function commerce_event_ticket_pdf_download($entity, $entity_type = 'commerce_event_ticket') {
+  $file = commerce_event_ticket_pdf_create($entity, $entity_type);
   if (!$file) {
     // If this error happens, it's probably to do with file permissions.
     drupal_set_message(t('The ticket file could not be generated.'), 'error');
