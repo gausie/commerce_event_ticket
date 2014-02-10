@@ -93,12 +93,4 @@ function drush_commerce_event_ticket_delete_all_event_tickets() {
   }
   commerce_event_ticket_delete_multiple($ids);
   cache_clear_all('commerce_event_ticket_tickets_generated', 'cache');
-  $private = drupal_realpath('private://commerce_event_ticket_pdf/');
-  if ($private) {
-    drush_log('This will delete all files in ' . $private, 'warning');
-    if (!drush_confirm('Are you sure?')) {
-      return;
-    }
-    shell_exec('rm -r ' . escapeshellarg($private) . '/*');
-  }
 }
