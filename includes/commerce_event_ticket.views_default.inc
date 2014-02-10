@@ -175,16 +175,6 @@ function commerce_event_ticket_views_default_views() {
   $handler->display->display_options['fields']['created']['field'] = 'created';
   $handler->display->display_options['fields']['created']['label'] = 'Created';
   $handler->display->display_options['fields']['created']['date_format'] = 'short';
-  /* Field: Ticket: PDF */
-  $handler->display->display_options['fields']['cet_pdf']['id'] = 'cet_pdf';
-  $handler->display->display_options['fields']['cet_pdf']['table'] = 'field_data_cet_pdf';
-  $handler->display->display_options['fields']['cet_pdf']['field'] = 'cet_pdf';
-  $handler->display->display_options['fields']['cet_pdf']['label'] = 'Download';
-  $handler->display->display_options['fields']['cet_pdf']['click_sort_column'] = 'fid';
-  $handler->display->display_options['fields']['cet_pdf']['type'] = 'file_download_link';
-  $handler->display->display_options['fields']['cet_pdf']['settings'] = array(
-    'text' => 'Download ticket',
-  );
 
   /* Display: Page */
   $handler = $view->new_display('page', 'Page', 'page');

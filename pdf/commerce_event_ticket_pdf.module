@@ -38,31 +38,33 @@ function _commerce_event_ticket_pdf_elements_options() {
  * Implements hook_commerce_event_tickets_created().
  */
 function commerce_event_ticket_pdf_commerce_event_tickets_created($tickets, $order, $recreate, $allow_email) {
-  // Generate and save PDF files when tickets are first created.
-  foreach ($tickets as $ticket) {
-    commerce_event_ticket_pdf_create($ticket, $recreate);
-  }
-  // Invoke the Rules event "After PDF tickets have been created for an order".
+  $file = commerce_event_ticket_pdf_create_by_order($order, $tickets, $recreate);
+  // Invoke the Rules event "After a PDF ticket file has been created for an order".
   // @see commerce_event_ticket_pdf_rules_event_info()
-  rules_invoke_all('commerce_event_ticket_pdf_created', $tickets, $order, $allow_email);
+  if ($file) {
+    rules_invoke_all('commerce_event_ticket_pdf_created', $file, $order, $allow_email);
+  }
 }
 
 /**
  * Implements hook_commerce_order_update().
  */
 function commerce_event_ticket_pdf_commerce_order_update($order) {
-  // Force the re-creation of ticket PDFs, if the order status has changed, and
-  // if the order already has tickets. This ensures that the PDF always reflects
-  // the current order status, whenever it is downloaded - without having to
+  // Delete existing ticket PDFs, if the order status has changed, and if the
+  // order already has tickets. This ensures that the PDF always reflects the
+  // current order status, whenever it is downloaded - without having to
   // recreate the actual ticket barcodes.
   if ($order->status != $order->original->status
     && _commerce_event_ticket_order_should_have_tickets($order)) {
-    // Find the tickets for the order.
     $ticket_ids = commerce_event_ticket_find_by_order($order);
     if ($ticket_ids) {
-      $tickets = commerce_event_ticket_load_multiple($ticket_ids);
-      foreach ($tickets as $ticket) {
-        commerce_event_ticket_pdf_create($ticket, TRUE);
+      $fids = db_select('commerce_event_ticket_pdf', 'p')
+        ->fields('p', array('fid'))
+        ->condition('ticket_id', $ticket_ids, 'IN')
+        ->execute()
+        ->fetchCol();
+      if ($fids) {
+        file_delete_multiple($fids);
       }
     }
   }
@@ -75,17 +77,29 @@ function commerce_event_ticket_pdf_commerce_order_update($order) {
  *   The ticket object.
  * @param bool $recreate
  *   Whether to recreate (replace) the file if it already exists.
+ *
+ * @return object|FALSE
+ *   A saved file object representing the PDF, or FALSE on failure.
  */
 function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $recreate = FALSE) {
-  // Use an Entity API metadata wrapper for simpler access to the file field.
-  $ticket_wrapper = entity_metadata_wrapper('commerce_event_ticket', $ticket);
-  // If the file already exists then just return that.
-  if (!empty($ticket->cet_pdf) && !$recreate) {
-    return $ticket_wrapper->cet_pdf->value();
+  // Check if the file already exists.
+  $fid = db_select('commerce_event_ticket_pdf', 'p')
+    ->fields('p', array('fid'))
+    ->condition('ticket_id', $ticket->ticket_id)
+    ->condition('scope', 'ticket')
+    ->execute()
+    ->fetchField();
+  if ($fid) {
+    if ($recreate) {
+      file_delete_multiple(array($fid));
+    }
+    else {
+      return file_load($fid);
+    }
   }
 
   // Generate a new PDF file (using the TCPDF library).
-  $pdf = commerce_event_ticket_pdf_generate(array($ticket));
+  $pdf = commerce_event_ticket_pdf_generate(array($ticket->ticket_id => $ticket));
 
   // Load the order.
   $order = commerce_order_load($ticket->order_id);
@@ -96,35 +110,42 @@ function commerce_event_ticket_pdf_create(CommerceEventTicketEntity $ticket, $re
   $save_dir = commerce_event_ticket_pdf_get_save_dir($order, TRUE);
   $destination = $save_dir . '/ticket_' . $hash . '.pdf';
 
-  // Get the PDF data as a string.
-  $pdf_data = $pdf->Output('', 'S');
-
   // Save the PDF to a file.
-  $file = file_save_data($pdf_data, $destination, FILE_EXISTS_REPLACE);
+  $data = $pdf->Output('', 'S');
+  $file = file_save_data($data, $destination, FILE_EXISTS_REPLACE);
 
   // Save memory if multiple PDFs are being generated in this process. This
   // may or may not have any real effect, but it does no harm.
-  unset($pdf, $pdf_data);
+  unset($pdf, $data);
 
-  // Link the file to the ticket entity.
-  if ($file) {
-    // Ensure that the file UID is the same as the order UID.
-    $file->uid = $order->uid;
-    file_save($file);
-    // Save the file to the ticket.
-    $ticket_wrapper->cet_pdf->set(array(
-      'fid' => $file->fid,
-      'display' => 0,
-    ));
-    $ticket_wrapper->save();
+  // Fail if the file has not been created.
+  if (!$file) {
+    watchdog('commerce_event_ticket_pdf', 'Failed to create PDF for ticket @id', array('@id' => $ticket->ticket_id), WATCHDOG_ERROR);
+    return FALSE;
   }
+
+  // Ensure that the file UID is the same as the order UID.
+  $file->uid = $order->uid;
+  file_save($file);
+
+  // Save the file to the ticket.
+  db_insert('commerce_event_ticket_pdf')
+    ->fields(array(
+      'fid' => $file->fid,
+      'ticket_id' => $ticket->ticket_id,
+      'scope' => 'ticket',
+      'created' => REQUEST_TIME,
+      'changed' => REQUEST_TIME,
+    ))
+    ->execute();
 }
 
 /**
  * Generate a PDF for a ticket.
  *
  * @param array $tickets
- *   An array of ticket objects (CommerceEventTicketEntity).
+ *   An array of ticket objects (CommerceEventTicketEntity), keyed by their
+ *   ticket IDs.
  *
  * @return TCPDF
  *   A TCPDF object representing the PDF (not yet saved as a file).
@@ -147,13 +168,14 @@ function commerce_event_ticket_pdf_generate(array $tickets) {
   // Set PDF metadata.
   $pdf->setAuthor(variable_get('site_name'));
   $pdf->setCreator($site_url);
-  $ticket_ids = array();
-  foreach ($tickets as $ticket) {
-    $ticket_ids[] = $ticket->ticket_id;
-  }
   $pdf->setTitle(
-    format_plural(count($tickets), 'Ticket: @ids', 'Tickets: @ids', array('@ids' => implode(', ', $ticket_ids)))
+    format_plural(count($tickets), 'Ticket: @ids', 'Tickets: @ids', array('@ids' => implode(', ', array_keys($tickets))))
   );
+
+  // Get the configuration for elements in the PDF.
+  $options = _commerce_event_ticket_pdf_elements_options();
+  $defaults = drupal_map_assoc(array_keys($options));
+  $elements = variable_get('commerce_event_ticket_pdf_elements', $defaults);
 
   foreach ($tickets as $ticket) {
     // Create a new PDF page.
@@ -161,11 +183,6 @@ function commerce_event_ticket_pdf_generate(array $tickets) {
     // Get the page height and width for later calculations.
     $page_height = $pdf->getPageHeight();
     $page_width = $pdf->getPageWidth();
-
-    // Get the configuration for elements in the PDF.
-    $options = _commerce_event_ticket_pdf_elements_options();
-    $defaults = drupal_map_assoc(array_keys($options));
-    $elements = variable_get('commerce_event_ticket_pdf_elements', $defaults);
 
     // Add a 1D code at the top right of the page (optionally).
     $barcode_1d_width = 80;
@@ -345,8 +362,8 @@ function commerce_event_ticket_pdf_get_save_dir($order, $create = FALSE) {
   // introduce performance issues.
   $save_dir = 'private://commerce_event_ticket_pdf/' . date('Y/m/d', $order->created);
   if ($create && !file_exists($save_dir)) {
-    mkdir($save_dir, 0755, TRUE);
-    chmod(drupal_realpath($save_dir), 0755);
+    mkdir($save_dir, 0775, TRUE);
+    chmod(drupal_realpath($save_dir), 0775);
   }
   return $save_dir;
 }
@@ -370,74 +387,102 @@ function _commerce_event_ticket_pdf_get_tcpdf_instance() {
  * Implements hook_entity_delete()
  */
 function commerce_event_ticket_pdf_entity_delete($entity, $type) {
-  // Delete aggregate files when tickets are deleted.
+  // Delete PDF files when tickets are deleted.
   if ($type == 'commerce_event_ticket') {
-    $order = commerce_order_load($entity->order_id);
-    $file = commerce_event_ticket_pdf_load_aggregate_file($order);
-    if ($file) {
-      file_usage_delete($file, 'commerce_event_ticket_pdf');
-      file_delete($file);
+    $fids = db_select('commerce_event_ticket_pdf', 'p')
+      ->fields('p', array('fid'))
+      ->condition('ticket_id', $entity->ticket_id)
+      ->execute()
+      ->fetchCol();
+    if ($fids) {
+      file_delete_multiple($fids);
     }
   }
 }
 
 /**
- * Get the filename of a PDF ticket aggregate.
+ * Implements hook_file_delete().
  */
-function commerce_event_ticket_pdf_get_aggregate_filename($order, $create_dir = FALSE) {
-  $save_dir = commerce_event_ticket_pdf_get_save_dir($order, $create_dir);
-  $output_filename = $save_dir . '/' . 'aggregate-' . $order->order_id . '.pdf';
-  return $output_filename;
-}
-
-/**
- * Load the PDF ticket aggregate for an order.
- */
-function commerce_event_ticket_pdf_load_aggregate_file($order) {
-  $aggregate = commerce_event_ticket_pdf_get_aggregate_filename($order);
-  if (file_exists($aggregate)) {
-    $files = file_load_multiple(array(), array('uri' => $aggregate));
-    return $files ? reset($files) : FALSE;
+function commerce_event_ticket_pdf_file_delete($file) {
+  if ($file->type == 'application/pdf') {
+    // Update the table tracking PDF files, when the files are deleted.
+    db_delete('commerce_event_ticket_pdf')
+      ->condition('fid', $file->fid)
+      ->execute();
   }
-  return FALSE;
 }
 
 /**
- * Aggregate ticket PDFs for an order into a single file.
- *
- * This can be invoked as a Rules action.
+ * Create a PDF file containing all the tickets for an order.
  *
  * @param object $order
  *   The Commerce order object.
  * @param array $tickets
- *   An array of ticket (CommerceEventTicketEntity) objects.
+ *   An array of ticket objects. If omitted, the tickets for the order will be
+ *   loaded automatically.
  * @param bool $recreate
- *   Whether to recreate the aggregate if it already exists (default: FALSE).
+ *   Whether to recreate (replace) the file if it already exists.
+ *
+ * @return object|FALSE
+ *   A saved file object representing the PDF, or FALSE on failure.
  */
-function commerce_event_ticket_pdf_aggregate($order, $tickets, $recreate = FALSE) {
-  $output_filename = commerce_event_ticket_pdf_get_aggregate_filename($order, TRUE);
-  if (file_exists($output_filename)) {
-    $file = commerce_event_ticket_pdf_load_aggregate_file($order);
+function commerce_event_ticket_pdf_create_by_order($order, $tickets = array(), $recreate = FALSE) {
+  if (empty($tickets)) {
+    $ticket_ids = commerce_event_ticket_find_by_order($order);
+    if (!count($ticket_ids)) {
+      return;
+    }
+    $tickets = commerce_event_ticket_load_multiple($ticket_ids);
+  }
+  // Check if the file already exists.
+  $fid = db_select('commerce_event_ticket_pdf', 'p')
+    ->fields('p', array('fid'))
+    ->condition('ticket_id', array_keys($tickets), 'IN')
+    ->condition('scope', 'order')
+    ->range(0, 1)
+    ->execute()
+    ->fetchField();
+  if ($fid) {
     if ($recreate) {
-      file_usage_delete($file, 'commerce_event_ticket_pdf');
-      file_delete($file);
+      file_delete_multiple(array($fid));
     }
     else {
-      return $file;
+      return file_load($fid);
     }
   }
 
   $pdf = commerce_event_ticket_pdf_generate($tickets);
 
-  // Get the PDF data as a string.
-  $pdf_data = $pdf->Output('', 'S');
-
   // Save the PDF to a file.
-  $file = file_save_data($pdf_data, $output_filename, FILE_EXISTS_REPLACE);
+  $save_dir = commerce_event_ticket_pdf_get_save_dir($order, TRUE);
+  $output_filename = $save_dir . '/' . 'tickets-order-' . $order->order_id . '.pdf';
+  $data = $pdf->Output('', 'S');
+  $file = file_save_data($data, $output_filename, FILE_EXISTS_REPLACE);
+  unset($pdf, $data);
 
-  // Save memory if multiple PDFs are being generated in this process. This
-  // may or may not have any real effect, but it does no harm.
-  unset($pdf, $pdf_data);
+  if (!$file) {
+    watchdog('commerce_event_ticket_pdf', 'Failed to create PDF for order @id', array('@id' => $order->order_id), WATCHDOG_ERROR);
+    return FALSE;
+  }
+
+  // Ensure that the file's UID is the same as the order UID.
+  $file->uid = $order->uid;
+  file_save($file);
+
+  // Record that this file is associated with these tickets, so it can be
+  // deleted if any of the tickets are deleted.
+  $query = db_insert('commerce_event_ticket_pdf')
+    ->fields(array('fid', 'ticket_id', 'created', 'changed', 'scope'));
+  foreach ($tickets as $ticket) {
+    $query->values(array(
+      'fid' => $file->fid,
+      'ticket_id' => $ticket->ticket_id,
+      'created' => REQUEST_TIME,
+      'changed' => REQUEST_TIME,
+      'scope' => 'order',
+    ));
+  }
+  $query->execute();
 
   file_usage_add($file, 'commerce_event_ticket_pdf', 'commerce_order', $order->order_id);
   return $file;

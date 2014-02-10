@@ -624,7 +624,7 @@ function commerce_event_ticket_create_from_order($order, $recreate = FALSE, $all
     $tickets = array();
     $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
     foreach ($order_wrapper->commerce_line_items as $line_item_wrapper) {
-      $tickets = array_merge($tickets, commerce_event_ticket_create_from_line_item($line_item_wrapper, $recreate));
+      $tickets += commerce_event_ticket_create_from_line_item($line_item_wrapper, $recreate);
     }
   }
   // Allow other modules to act when all the tickets for this order have been

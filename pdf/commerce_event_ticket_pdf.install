@@ -5,8 +5,71 @@
  */
 
 /**
+ * Implements hook_schema().
+ */
+function commerce_event_ticket_pdf_schema() {
+  $schema = array();
+
+  $schema['commerce_event_ticket_pdf'] = array(
+    'description' => 'Maintain a registry of files linked to tickets.',
+    'fields' => array(
+      'ticket_id' => array(
+        'description' => 'Relates to {commerce_event_ticket}.ticket_id.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'fid' => array(
+        'description' => 'Relates to {file_managed}.fid.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'scope' => array(
+        'description' => "How many tickets the file includes - one of 'ticket', 'line_item', or 'order'.",
+        'type' => 'varchar',
+        'length' => 10,
+        'not null' => TRUE,
+        'default' => 'ticket',
+      ),
+      'created' => array(
+        'description' => 'The UNIX timestamp when this record was created.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'changed' => array(
+        'description' => 'The UNIX timestamp when this record was last modified.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('ticket_id', 'fid', 'scope'),
+  );
+
+  return $schema;
+}
+
+/**
  * Implements hook_uninstall().
  */
 function commerce_event_ticket_pdf_uninstall() {
   variable_del('commerce_event_ticket_pdf_elements');
+}
+
+/**
+ * Create the 'scope' column.
+ */
+function commerce_event_ticket_pdf_update_7002() {
+  db_add_field('commerce_event_ticket_pdf', 'scope', array(
+    'description' => "One of 'ticket', 'line_item', or 'order'.",
+    'type' => 'varchar',
+    'length' => 10,
+    'not null' => TRUE,
+    'default' => 'ticket',
+  ));
+  db_drop_index('commerce_event_ticket_pdf', 'ticket_id');
+  db_drop_index('commerce_event_ticket_pdf', 'fid');
+  db_add_primary_key('commerce_event_ticket_pdf', array('ticket_id', 'fid', 'scope'));
 }

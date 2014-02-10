@@ -15,11 +15,11 @@ function commerce_event_ticket_pdf_rules_event_info() {
   );
   $events = array();
   $events['commerce_event_ticket_pdf_created'] = $defaults + array(
-    'label' => t('After PDF tickets have been created for an order'),
+    'label' => t('After a PDF ticket file has been created for an order'),
     'variables' => array(
-      'tickets' => array(
-        'type' => 'list<commerce_event_ticket>',
-        'label' => t("The order's tickets"),
+      'file' => array(
+        'type' => 'file',
+        'label' => t('The PDF file containing the tickets for the order.'),
         'skip save' => TRUE,
       ),
       'order' => array(
@@ -35,38 +35,4 @@ function commerce_event_ticket_pdf_rules_event_info() {
     ),
   );
   return $events;
-}
-
-/**
- * Implements hook_rules_action_info().
- */
-function commerce_event_ticket_pdf_rules_action_info() {
-
-  $actions = array();
-
-  $defaults = array(
-    'group' => t('Commerce Event Ticket'),
-  );
-
-  $actions['commerce_event_ticket_pdf_aggregate'] = $defaults + array(
-    'label' => t('Aggregate ticket PDFs into a single file'),
-    'parameter' => array(
-      'order' => array(
-        'type' => 'commerce_order',
-        'label' => t('The order associated with the tickets'),
-      ),
-      'tickets' => array(
-        'type' => 'list<commerce_event_ticket>',
-        'label' => t('The tickets'),
-      ),
-    ),
-    'provides' => array(
-      'aggregate' => array(
-        'type' => 'file',
-        'label' => t("The PDF file containing all the order's tickets."),
-      ),
-    ),
-  );
-
-  return $actions;
 }
