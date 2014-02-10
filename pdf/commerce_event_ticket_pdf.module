@@ -107,34 +107,11 @@ function commerce_event_ticket_pdf_commerce_order_update($order) {
  *   A saved file object representing the PDF, or FALSE on failure.
  */
 function commerce_event_ticket_pdf_create($entity, $entity_type = 'commerce_event_ticket', array $tickets = array(), $recreate = FALSE) {
+  // Get the entity ID.
   $entity_ids = entity_extract_ids($entity_type, $entity);
   $entity_id = $entity_ids[0];
-  // Check if the file already exists.
-  $fid = db_select('commerce_event_ticket_pdf', 'p')
-    ->fields('p', array('fid'))
-    ->condition('entity_type', $entity_type)
-    ->condition('entity_id', $entity_id)
-    ->execute()
-    ->fetchField();
-  if ($fid) {
-    if ($recreate) {
-      file_delete_multiple(array($fid));
-    }
-    else {
-      $file = file_load($fid);
-      if ($file) {
-        return $file;
-      }
-      else {
-        // If the file cannot be loaded, delete its entry.
-        db_delete('commerce_event_ticket_pdf')
-          ->condition('fid', $fid)
-          ->execute();
-      }
-    }
-  }
 
-  // Get the tickets related to the entity, and the order.
+  // Get the tickets and order related to the specified entity.
   switch ($entity_type) {
     case 'commerce_event_ticket':
       if (empty($tickets)) {
@@ -163,6 +140,40 @@ function commerce_event_ticket_pdf_create($entity, $entity_type = 'commerce_even
         $order = commerce_order_load($ticket->order_id);
       }
       break;
+  }
+
+  // If it's known that the order or line item only contains one ticket, then
+  // switch to generating a file just for that ticket - this reduces duplicate
+  // files.
+  if ($entity_type != 'commerce_event_ticket' && count($tickets) == 1) {
+    $entity_type = 'commerce_event_ticket';
+    $entity = reset($tickets);
+    $entity_id = $entity->ticket_id;
+  }
+
+  // Check if the file already exists.
+  $fid = db_select('commerce_event_ticket_pdf', 'p')
+    ->fields('p', array('fid'))
+    ->condition('entity_type', $entity_type)
+    ->condition('entity_id', $entity_id)
+    ->execute()
+    ->fetchField();
+  if ($fid) {
+    if ($recreate) {
+      file_delete_multiple(array($fid));
+    }
+    else {
+      $file = file_load($fid);
+      if ($file) {
+        return $file;
+      }
+      else {
+        // If the file cannot be loaded, delete its entry.
+        db_delete('commerce_event_ticket_pdf')
+          ->condition('fid', $fid)
+          ->execute();
+      }
+    }
   }
 
   if (empty($tickets)) {
