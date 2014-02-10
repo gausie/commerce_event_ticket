@@ -86,7 +86,7 @@ function commerce_event_ticket_pdf_commerce_order_update($order) {
  * @return object|FALSE
  *   A saved file object representing the PDF, or FALSE on failure.
  */
-function commerce_event_ticket_pdf_create($entity, $entity_type, $tickets = array(), $recreate = FALSE) {
+function commerce_event_ticket_pdf_create($entity, $entity_type, array $tickets = array(), $recreate = FALSE) {
   $entity_ids = entity_extract_ids($entity_type, $entity);
   $entity_id = $entity_ids[0];
   // Check if the file already exists.
@@ -190,7 +190,7 @@ function commerce_event_ticket_pdf_create($entity, $entity_type, $tickets = arra
 }
 
 /**
- * Generate a PDF for a ticket.
+ * Generate a PDF containing a group of one or more tickets.
  *
  * @param array $tickets
  *   An array of ticket objects (CommerceEventTicketEntity), keyed by their
@@ -201,6 +201,10 @@ function commerce_event_ticket_pdf_create($entity, $entity_type, $tickets = arra
  */
 function commerce_event_ticket_pdf_generate(array $tickets) {
   $pdf = _commerce_event_ticket_pdf_get_tcpdf_instance();
+
+  if (!$pdf) {
+    throw new Exception(t('Failed to get TCPDF instance: is the TCPDF library installed?'));
+  }
 
   // Turn off the TCPDF header and footer (a black line).
   $pdf->setPrintHeader(FALSE);
