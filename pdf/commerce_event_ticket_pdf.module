@@ -119,8 +119,17 @@ function commerce_event_ticket_pdf_create($entity, $entity_type = 'commerce_even
     if ($recreate) {
       file_delete_multiple(array($fid));
     }
-    elseif ($file = file_load($fid)) {
-      return $file;
+    else {
+      $file = file_load($fid);
+      if ($file) {
+        return $file;
+      }
+      else {
+        // If the file cannot be loaded, delete its entry.
+        db_delete('commerce_event_ticket_pdf')
+          ->condition('fid', $fid)
+          ->execute();
+      }
     }
   }
 
