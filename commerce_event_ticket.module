@@ -447,7 +447,7 @@ function commerce_event_ticket_generate_barcode_token($length = 10, $alpha = TRU
  *   it is complete (for the purpose of validating tickets), FALSE otherwise.
  */
 function _commerce_event_ticket_check_order_status($order) {
-  $valid_statuses = variable_get('commerce_event_ticket_valid_statuses', array('checkout_complete'));
+  $valid_statuses = variable_get('commerce_event_ticket_valid_statuses', array('checkout_complete', 'completed'));
   return in_array($order->status, $valid_statuses);
 }
 
@@ -470,7 +470,7 @@ function _commerce_event_ticket_order_should_have_tickets($order) {
     return $cache[$order->order_id];
   }
   // Check the order status.
-  $statuses_create = variable_get('commerce_event_ticket_statuses_create', array('checkout_complete'));
+  $statuses_create = variable_get('commerce_event_ticket_statuses_create', array('checkout_complete', 'completed'));
   if (!in_array($order->status, $statuses_create)) {
     $cache[$order->order_id] = FALSE;
     return FALSE;

@@ -49,7 +49,7 @@ function drush_commerce_event_ticket_validate_event_ticket($barcode_token) {
  *   The maximum number of orders to process (default: 50).
  */
 function drush_commerce_event_ticket_generate_event_tickets($limit = 50) {
-  $statuses_create = variable_get('commerce_event_ticket_statuses_create', array('checkout_complete'));
+  $statuses_create = variable_get('commerce_event_ticket_statuses_create', array('checkout_complete', 'completed'));
   $cache_key = 'commerce_event_ticket_tickets_generated';
   $tickets_generated = cache_get($cache_key);
   $tickets_generated = $tickets_generated ? $tickets_generated->data : array();
