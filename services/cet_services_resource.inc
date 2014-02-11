@@ -8,6 +8,9 @@
  * Retrieve callback to get ticket information based on a barcode.
  */
 function cet_services_retrieve_ticket($barcode) {
+
+  drupal_add_http_header("Access-Control-Allow-Origin", "*");
+
   $ticket = commerce_event_ticket_load_by_barcode($barcode);
   if (!$ticket) {
     return FALSE;
