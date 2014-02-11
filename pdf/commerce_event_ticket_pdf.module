@@ -601,6 +601,8 @@ function commerce_event_ticket_pdf_download($entity, $entity_type = 'commerce_ev
     drupal_set_message(t('The ticket file could not be generated.'), 'error');
     return MENU_NOT_FOUND;
   }
-  $uri = file_entity_download_uri($file);
-  drupal_goto($uri['path'], $uri['options']);
+  // Deliver the file using the File Entity module's download page callback.
+  $_GET['token'] = file_entity_get_download_token($file);
+  module_load_include('inc', 'file_entity', 'file_entity.pages');
+  return file_entity_download_page($file);
 }
